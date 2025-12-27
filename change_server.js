@@ -12,7 +12,7 @@ function startMe() {
   
   Lampa.SettingsApi.addComponent({
             component: 'location_redirect',
-            name: 'Зміна сервера',
+            name: 'Смена сервера',
             icon: icon_server_redirect
   });
   Lampa.SettingsApi.addParam({
@@ -21,14 +21,15 @@ function startMe() {
 					name: 'location_server',
 					type: 'select', 
 					 values: {
-						'-':'Поточний',
-                        'https://central-roze-d-yuriyovych-74a9dc5c.koyeb.app/':'Lampac Koyeb',
+						'-':'Текущий',
+                        'lampa.byskaz.ru':'lampa.byskaz.ru',
+						'ua.byskaz.ru':'ua.byskaz.ru',
 						'lampa.mx':'lampa.mx'
                     },
 					default: '-'
 				},
 				field: {
-                    name: 'Виберіть домен Lampa'
+                    name: 'Выберите домен Lampa'
                 },
 				onChange: function (value) {
 					      startMe();
