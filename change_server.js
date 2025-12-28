@@ -42,7 +42,7 @@ function checkOnline(url, callback) {
 }
 
 function startMe() { 
-    // ПРИМУСОВЕ ОЧИЩЕННЯ ПРИ КОЖНОМУ ВИКЛИКУ (ВХОДІ В МЕНЮ)
+    // Очищуємо кеш статусів ПРИ КОЖНОМУ відкритті
     states_cache = {};
 
     var current_host = window.location.hostname;
@@ -89,6 +89,9 @@ function startMe() {
             field: { name: srv.name },
             onRender: function(item) {
                 item.addClass('selector selector-item');
+                // Видаляємо старий стан для цього сервера, щоб перевірити заново
+                delete states_cache[srv.url.replace(/\/$/, "")];
+
                 checkOnline(srv.url, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
                     item.find('.settings-param__name').html(srv.name + ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
@@ -101,11 +104,13 @@ function startMe() {
                         Lampa.Noty.show('Сервер недоступний');
                         return;
                     }
+                    // Фіксуємо вибір у Storage
                     Lampa.Storage.set('location_server', srv.url);
                     item.parent().find('.settings-param__name').each(function() {
                         $(this).html($(this).html().replace('✓ ', ''));
                     });
                     item.find('.settings-param__name').prepend('✓ ');
+                    Lampa.Noty.show('Вибрано: ' + srv.name);
                 });
             }
         });
@@ -118,21 +123,23 @@ function startMe() {
         onRender: function(item) {
             item.addClass('selector selector-item').on('hover:enter click', function() {
                 var target = Lampa.Storage.get('location_server');
+                
                 if (target && target !== '-') {
                     var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // Запис у налаштування
+                    // Записуємо нову адресу в налаштування Android-додатка
                     Lampa.Storage.set('server_url', clean);
                     Lampa.Storage.set('location_server', '-');
                     
                     Lampa.Noty.show('Перехід на ' + clean);
                     
                     setTimeout(function(){
-                        // Пряма адреса без https та index.html для уникнення помилки ERR_HTTP_RESPONSE_CODE_FAILURE
-                        window.location.replace('http://' + clean + '/?r=' + Date.now());
+                        // Повністю змінюємо URL і перезавантажуємося
+                        var final_url = 'http://' + clean + '/?r=' + Math.random();
+                        window.location.replace(final_url);
                     }, 300);
                 } else {
-                    Lampa.Noty.show('Виберіть доступний сервер');
+                    Lampa.Noty.show('Виберіть доступний сервер зі списку');
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
@@ -140,7 +147,7 @@ function startMe() {
     });
 } 
 
-// Гарантоване оновлення при вході в налаштування
+// Слухач для оновлення при вході
 Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); });
 Lampa.Listener.follow('settings', function(e) {
     if(e.type == 'open' && e.name == 'location_redirect') {
