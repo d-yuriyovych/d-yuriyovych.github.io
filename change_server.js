@@ -37,13 +37,18 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // 1. ПОТОЧНИЙ СЕРВЕР (БЕЗ ФОКУСУ / НЕ ВИДІЛЯЄТЬСЯ)
+    // 1. ПОТОЧНИЙ СЕРВЕР (БЕЗ ФОКУСУ)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
         field: { name: 'Поточний сервер:' },
         onRender: function(item) {
-            // Тут ми НЕ додаємо клас 'selector', тому пульт його ігнорує
+            // Примусово забираємо можливість фокусу
+            item.removeClass('selector selector-item').css({
+                'pointer-events': 'none',
+                'user-select': 'none'
+            });
+
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
                 var status = isOk ? 'доступний' : 'недоступний';
@@ -52,7 +57,7 @@ function startMe() {
                 
                 item.find('.settings-param__name').html(
                     'Поточний сервер:<br><br>' + 
-                    '<div style="margin-top: 5px;">' +
+                    '<div>' +
                     mark + '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_friendly + '</span>' +
                     ' — <span style="color:' + color + '">' + status + '</span>' +
                     '</div>'
@@ -61,18 +66,21 @@ function startMe() {
         }
     });
 
-    // 2. ЗАГОЛОВОК (БЕЗ ФОКУСУ / НЕ ВИДІЛЯЄТЬСЯ)
+    // 2. ЗАГОЛОВОК (БЕЗ ФОКУСУ)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'title_header', type: 'static' },
         field: { name: 'Виберіть сервер Lampa:' },
         onRender: function(item) {
-            // Робимо заголовок візуально трохи виразнішим, але без фокусу
-            item.find('.settings-param__name').css({'opacity': '0.8', 'padding-top': '10px'});
+            item.removeClass('selector selector-item').css({
+                'pointer-events': 'none',
+                'padding-top': '15px'
+            });
+            item.find('.settings-param__name').css('opacity', '0.6');
         }
     });
 
-    // 3. СПИСОК СЕРВЕРІВ (ВИДІЛЯЮТЬСЯ ПУЛЬТОМ)
+    // 3. СПИСОК СЕРВЕРІВ (КЛІКАБЕЛЬНІ)
     var servers = [
         { name: 'Lampac Koyeb', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
         { name: 'lampa.mx', url: 'lampa.mx' }
@@ -84,13 +92,16 @@ function startMe() {
             param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'static' },
             field: { name: srv.name },
             onRender: function(item) {
-                // Додаємо клас selector, щоб працював фокус на смарт-тв
-                item.addClass('selector-item selector').css('cursor', 'pointer');
+                // Додаємо класи для фокусу Смарт-ТВ
+                item.addClass('selector selector-item').css('cursor', 'pointer');
+                
+                // Обробка натискання "ОК"
                 item.on('hover:enter click', function() {
                     Lampa.Storage.set('location_server', srv.url);
                     Lampa.Settings.update();
                     Lampa.Noty.show('Вибрано: ' + srv.name);
                 });
+
                 var isSelected = Lampa.Storage.get('location_server') === srv.url;
                 var mark = isSelected ? '<span style="color:#2ecc71">✓ </span>' : '';
                 checkOnline(srv.url, function(isOk) {
@@ -101,13 +112,17 @@ function startMe() {
         });
     });
 
-    // 4. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ (ВИДІЛЯЄТЬСЯ ПУЛЬТОМ)
+    // 4. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ (КЛІКАБЕЛЬНА)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'apply_reload', type: 'static' },
         field: { name: 'ЗМІНИТИ СЕРВЕР (Перезавантажити)' },
         onRender: function(item) {
-            item.addClass('selector-item selector').css('cursor', 'pointer');
+            item.addClass('selector selector-item').css({
+                'cursor': 'pointer',
+                'margin-top': '15px'
+            });
+            
             item.on('hover:enter click', function() {
                 var target = Lampa.Storage.get('location_server');
                 if (target && target !== '-') {
@@ -116,7 +131,7 @@ function startMe() {
                     Lampa.Noty.show('Сервер не змінено');
                 }
             });
-            item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold', 'padding-top': '10px'});
+            item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
         }
     });
 } 
