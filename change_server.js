@@ -37,56 +37,49 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    var serverList = [
-        { name: 'Поточний : ' + current_friendly, url: '-' },
-        { name: 'Lampac Koyeb', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
-        { name: 'lampa.mx', url: 'lampa.mx' }
-    ];
-
-    // 1. ПЕРШИЙ РЯДОК: ПОТОЧНИЙ СЕРВЕР З ПЕРЕВІРКОЮ
+    // Рядок 1: ПОТОЧНИЙ СТАТУС (Один вгорі)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
-        param: { name: 'main_status_row', type: 'select', values: {'-': '...'}, default: '-' },
-        field: { name: 'Завантаження статусу...' },
+        param: { name: 'status_info', type: 'static' },
+        field: { name: 'Поточний : ' + current_friendly },
         onRender: function(item) {
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
                 var status = isOk ? ' - доступний' : ' - недоступний';
                 item.find('.settings-param__name').html('Поточний : <span style="color:' + color + '">' + current_friendly + status + '</span>');
-                item.find('.settings-param__value').hide(); // Ховаємо зайве значення select
             });
         }
     });
 
-    // 2. ЗАГОЛОВОК З ДВОКРАПКОЮ
+    // Рядок 2: ЗАГОЛОВОК
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
-        param: { name: 'header_text', type: 'static' },
+        param: { name: 'header_sel', type: 'static' },
         field: { name: 'Виберіть сервер Lampa:' }
     });
 
-    // 3. СПИСОК СЕРВЕРІВ (КЛІКАБЕЛЬНІ)
-    serverList.forEach(function(srv) {
+    // СПИСОК СЕРВЕРІВ (Тип scroll не відкриває меню вибору)
+    var list = [
+        { name: 'Lampac Koyeb', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
+        { name: 'lampa.mx', url: 'lampa.mx' }
+    ];
+
+    list.forEach(function(srv) {
         Lampa.SettingsApi.addParam({
             component: 'location_redirect',
-            param: { name: 'srv_click_' + srv.url.replace(/\W/g, ''), type: 'select', values: {'-': srv.name}, default: '-' },
+            param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'scroll' },
             field: { name: srv.name },
-            onChange: function() {
+            onSelect: function() {
                 Lampa.Storage.set('location_server', srv.url);
                 Lampa.Noty.show('Вибрано: ' + srv.name);
                 Lampa.Settings.update();
             },
             onRender: function(item) {
-                item.find('.settings-param__value').hide();
                 var nameEl = item.find('.settings-param__name');
-                
-                // Галочка для обраного
                 if (Lampa.Storage.get('location_server') === srv.url) {
                     nameEl.prepend('<span style="color:#2ecc71">✓ </span>');
                 }
-
-                // Статус
-                checkOnline((srv.url === '-') ? current_host : srv.url, function(isOk) {
+                checkOnline(srv.url, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
                     nameEl.append(' <span style="color:' + color + '; font-size: 0.85em;">- доступний</span>');
                 });
@@ -94,21 +87,21 @@ function startMe() {
         });
     });
 
-    // 4. СИНЯ КНОПКА ПЕРЕЗАВАНТАЖЕННЯ
+    // КНОПКА ПЕРЕЗАВАНТАЖЕННЯ (Синя)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
-        param: { name: 'apply_btn', type: 'select', values: {'-': 'ВИКОНАТИ'}, default: '-' },
+        param: { name: 'apply_action', type: 'scroll' },
         field: { name: 'ЗМІНИТИ СЕРВЕР (Перезавантажити)' },
-        onChange: function() {
+        onSelect: function() {
             var target = Lampa.Storage.get('location_server');
-            if (!target || target === '-') {
-                Lampa.Noty.show('Сервер не змінено');
-            } else {
+            if (target && target !== '-') {
                 window.location.href = 'http://' + target + '?redirect=1';
+            } else {
+                Lampa.Noty.show('Виберіть інший сервер зі списку');
             }
         },
         onRender: function(item) {
-            item.find('.settings-param__value').hide();
+            item.css('margin-top', '15px');
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
         }
     });
