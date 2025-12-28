@@ -119,29 +119,24 @@ function startMe() {
                 if (target && target !== '-') {
                     var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // 1. Жорстко прописуємо в усі можливі місця
+                    // КРОК 1: Тільки запис у пам'ять, ніяких переходів
                     Lampa.Storage.set('server_url', clean);
-                    localStorage.setItem('server_url', clean);
+                    Lampa.Storage.set('location_server', '-');
                     
-                    Lampa.Noty.show('Фіксація сервера та перезавантаження...');
+                    Lampa.Noty.show('Сервер збережено. Додаток зараз перезавантажиться.');
                     
                     setTimeout(function(){
-                        // 2. Метод повного скидання через заміну посилання з унікальним параметром
-                        // Це змушує Android WebView ігнорувати "рідну" адресу додатка
-                        var jump_url = 'http://' + clean + '/index.html?v=' + Date.now();
-                        
-                        // Якщо є метод перезапуску додатка - використовуємо його
-                        if(window.app && window.app.exit) {
-                             window.location.replace(jump_url);
-                             window.app.exit(); // Додаток закриється і відкриється вже з новим URL
+                        // КРОК 2: Примусове закриття додатка. 
+                        // При новому відкритті він сам піде на server_url.
+                        if (Lampa.Platform.exit) {
+                            Lampa.Platform.exit();
                         } else {
-                             window.location.href = jump_url;
-                             // Додаткова спроба через 200мс, якщо href не спрацював
-                             setTimeout(function() { window.location.assign(jump_url); }, 200);
+                            // Якщо exit недоступний, пробуємо reload
+                            window.location.reload();
                         }
-                    }, 500);
+                    }, 1000);
                 } else {
-                    Lampa.Noty.show('Виберіть сервер ще раз');
+                    Lampa.Noty.show('Виберіть сервер зі списку');
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
