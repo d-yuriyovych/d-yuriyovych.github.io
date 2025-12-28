@@ -8,11 +8,9 @@ function getFriendlyName(url) {
 }
 
 function checkOnline(url, callback) {
-    if (url === '-' || url === '') return callback(true);
+    if (url === '-' || url === '' || !url) return callback(true);
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
-    
-    // Використовуємо Image як максимально швидкий метод без CORS обмежень
     var img = new Image();
     img.onload = function() { callback(true); };
     img.onerror = function() { callback(true); }; 
@@ -24,10 +22,11 @@ function startMe() {
     var current_host = window.location.hostname;
     var current_friendly = getFriendlyName(current_host);
 
+    // Редирект працює лише за наявності мітки ?redirect=1
     if (window.location.search != '?redirect=1') { 
-        if(current_host != Lampa.Storage.get('location_server')) { 
-            if (Lampa.Storage.get('location_server') != '-' && Lampa.Storage.get('location_server') != '') 
-                window.location.href = 'http://' + Lampa.Storage.get('location_server') + '?redirect=1'; 
+        var savedServer = Lampa.Storage.get('location_server');
+        if(savedServer && savedServer !== '-' && current_host !== savedServer) { 
+             window.location.href = 'http://' + savedServer + '?redirect=1'; 
         } 
     } else {
         Lampa.Storage.set('location_server','-');
@@ -39,59 +38,69 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    var servers = { 
-        '-': 'Поточний : ' + current_friendly, 
-        'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/': 'Lampac Koyeb', 
-        'lampa.mx': 'lampa.mx' 
-    }; 
+    var serverList = [
+        { name: 'Поточний : ' + current_friendly, url: '-' },
+        { name: 'Lampac Koyeb', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
+        { name: 'lampa.mx', url: 'lampa.mx' }
+    ];
 
-    Lampa.SettingsApi.addParam({ 
-        component: 'location_redirect', 
-        param: { name: 'location_server', type: 'select', values: servers, default: '-' }, 
-        field: { name: 'Виберіть сервер Lampa' }, 
-        onChange: function () { startMe(); },
-        onRender: function(item) {
-            
-            // Функція примусового оновлення тексту
-            var updateElement = function($el, serverKey) {
-                var domain = (serverKey === '-') ? current_host : serverKey;
+    // Заголовок
+    Lampa.SettingsApi.addParam({
+        component: 'location_redirect',
+        param: { name: 'title_select', type: 'static' },
+        field: { name: 'Виберіть сервер Lampa' }
+    });
+
+    // Список серверів (кожен як окрема кнопка)
+    serverList.forEach(function(srv) {
+        Lampa.SettingsApi.addParam({
+            component: 'location_redirect',
+            param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'static' },
+            field: { name: srv.name },
+            onChange: function() {
+                Lampa.Storage.set('location_server', srv.url);
+                Lampa.Noty.show('Вибрано: ' + srv.name);
+                // Оновлюємо інтерфейс, щоб показати вибір
+                Lampa.Settings.update();
+            },
+            onRender: function(item) {
+                var domain = (srv.url === '-') ? current_host : srv.url;
+                var $valField = item.find('.settings-param__value');
+                
+                // Перевіряємо статус
                 checkOnline(domain, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
-                    var statusText = isOk ? ' - доступний' : ' - недоступний';
-                    var originalName = servers[serverKey];
-                    
-                    // Використовуємо .contents() щоб не затерти іконку "галочку" в селекторі
-                    $el.html('<span style="color:' + color + '">' + originalName + statusText + '</span>');
+                    var status = isOk ? ' - доступний' : ' - недоступний';
+                    item.find('.settings-param__name').append(' <span style="color:' + color + '; font-size: 0.8em;">' + status + '</span>');
                 });
-            };
 
-            // 1. Оновлюємо головне меню (Скрін 1) - запускаємо циклічно, поки ми в налаштуваннях
-            var mainInterval = setInterval(function() {
-                var $valField = item.find('.settings-param__value');
-                if($valField.length) {
-                    var cur = Lampa.Storage.get('location_server') || '-';
-                    // Оновлюємо тільки якщо ще не додано статус
-                    if($valField.text().indexOf('доступний') === -1) {
-                        updateElement($valField, cur);
-                    }
+                // Виділяємо вибраний сервер
+                if (Lampa.Storage.get('location_server') === srv.url) {
+                    item.css('background', 'rgba(255,255,255,0.1)');
+                    item.find('.settings-param__name').prepend('✓ ');
                 }
+            }
+        });
+    });
 
-                // 2. Оновлюємо меню вибору (Скрін 2) - шукаємо активне модальне вікно
-                $('.selector__item').each(function() {
-                    var $this = $(this);
-                    var rawText = $this.text().trim();
-                    
-                    Object.keys(servers).forEach(function(key) {
-                        if (rawText === servers[key]) {
-                            updateElement($this, key);
-                        }
-                    });
-                });
-            }, 300); // 0.3 сек для миттєвої реакції
-
-            item.on('destroy', function() { clearInterval(mainInterval); });
+    // Кнопка редиректу в самому низу
+    Lampa.SettingsApi.addParam({
+        component: 'location_redirect',
+        param: { name: 'apply_redirect', type: 'static' },
+        field: { name: 'ЗМІНИТИ СЕРВЕР (Перезавантажити)' },
+        onChange: function() {
+            var target = Lampa.Storage.get('location_server');
+            if (!target || target === '-') {
+                Lampa.Noty.show('Ви вже на цьому сервері');
+            } else {
+                window.location.href = 'http://' + target + '?redirect=1';
+            }
+        },
+        onRender: function(item) {
+            item.css('margin-top', '20px');
+            item.find('.settings-param__name').css('color', '#3498db');
         }
-    }); 
+    });
 } 
 
 if(window.appready) startMe(); 
