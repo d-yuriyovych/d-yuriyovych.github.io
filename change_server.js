@@ -2,8 +2,8 @@
 var icon_server_redirect = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 13H3V11H21V13ZM21 7H3V5H21V7ZM21 19H3V17H21V19Z" fill="white"/></svg>';
 
 var servers = [
-    { name: 'Lampa (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app' },
-    { name: 'Lampa (MX)', url: 'lampa.mx' }, 
+    { name: 'Lampa (Koyeb)', url: 'http://central-roze-d-yuriyovych-74a9dc5c.koyeb.app' },
+    { name: 'Lampa (MX)', url: 'http://lampa.mx' }, 
     { name: 'Lampa (NNMTV)', url: 'lam.nnmtv.pw' }, 
     { name: 'Lampa (VIP)', url: 'lampa.vip' },
     { name: 'Prisma', url: 'prisma.ws' }
