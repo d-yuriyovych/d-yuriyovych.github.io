@@ -24,9 +24,18 @@ function checkOnline(url, callback) {
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
 
-    fetch(testUrl, { mode: 'no-cors' })
-        .then(function() { callback(true); })
-        .catch(function() { callback(false); });
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() { controller.abort(); }, 3000);
+
+    fetch(testUrl, { mode: 'no-cors', signal: controller.signal })
+        .then(function() {
+            clearTimeout(timeoutId);
+            callback(true);
+        })
+        .catch(function() {
+            clearTimeout(timeoutId);
+            callback(false);
+        });
 }
 
 function startMe() { 
@@ -58,6 +67,15 @@ function startMe() {
         }
     });
 
+    Lampa.SettingsApi.addParam({
+        component: 'location_redirect',
+        param: { name: 'title_header', type: 'static' },
+        field: { name: 'Виберіть сервер Lampa:' },
+        onRender: function(item) {
+            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'padding-top': '15px'});
+        }
+    });
+
     servers.forEach(function(srv) {
         Lampa.SettingsApi.addParam({
             component: 'location_redirect',
@@ -66,17 +84,15 @@ function startMe() {
             onRender: function(item) {
                 item.addClass('selector selector-item').css('cursor', 'pointer');
                 
-                // Перевірка статусу тільки при початковій побудові списку
                 checkOnline(srv.url, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
-                    item.find('.settings-param__name').html(srv.name + ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
+                    var isSelected = Lampa.Storage.get('location_server') === srv.url;
+                    item.find('.settings-param__name').html((isSelected ? '✓ ' : '') + srv.name + ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
                 });
 
                 item.on('hover:enter click', function() {
                     Lampa.Storage.set('location_server', srv.url);
-                    // Візуальне підсвічування без перевантаження всього меню (уникаємо мерехтіння)
-                    $('.settings-param__name', item.parent()).css('color', '');
-                    item.find('.settings-param__name').css('color', 'yellow');
+                    Lampa.Settings.update(); // Для оновлення галочок
                     Lampa.Noty.show('Вибрано: ' + srv.name);
                 });
             }
@@ -94,16 +110,16 @@ function startMe() {
                 if (target && target !== '-') {
                     var clean_url = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // Крок 1: Оновлюємо внутрішню адресу додатка, щоб він не робив відкат
+                    // Оновлюємо внутрішню адресу додатка
                     Lampa.Storage.set('server_url', clean_url);
                     
-                    // Крок 2: Очищуємо наш буфер
+                    // Скидаємо буфер
                     Lampa.Storage.set('location_server', '-');
                     
-                    // Крок 3: Прямий перехід без зайвих перевірок
+                    // Редирект без повторних перевірок
                     window.location.href = 'http://' + clean_url + '?redirect=1';
                 } else {
-                    Lampa.Noty.show('Спочатку виберіть сервер зі списку');
+                    Lampa.Noty.show('Сервер не вибрано');
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
