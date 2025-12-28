@@ -37,17 +37,18 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // 1. ПОТОЧНИЙ СЕРВЕР (ЖОВТА НАЗВА + ГАЛОЧКА)
+    // 1. ПОТОЧНИЙ СЕРВЕР (ЖОВТА НАЗВА)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
-        param: { name: 'main_status', type: 'button' },
+        param: { name: 'main_status', type: 'select', values: {'-': ''}, default: '-' },
         field: { name: 'Поточний' },
         onSelect: function() {
             Lampa.Storage.set('location_server', '-');
             Lampa.Settings.update();
-            Lampa.Noty.show('Вибрано основний сервер');
+            Lampa.Noty.show('Вибрано поточний сервер');
         },
         onRender: function(item) {
+            item.find('.settings-param__value').remove(); // Прибираємо стрілку та зайве значення
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
                 var status = isOk ? ' - доступний' : ' - недоступний';
@@ -74,7 +75,7 @@ function startMe() {
     servers.forEach(function(srv) {
         Lampa.SettingsApi.addParam({
             component: 'location_redirect',
-            param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'button' },
+            param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'select', values: {'-': ''}, default: '-' },
             field: { name: srv.name },
             onSelect: function() {
                 Lampa.Storage.set('location_server', srv.url);
@@ -82,6 +83,7 @@ function startMe() {
                 Lampa.Settings.update();
             },
             onRender: function(item) {
+                item.find('.settings-param__value').remove();
                 var nameEl = item.find('.settings-param__name');
                 var isSelected = Lampa.Storage.get('location_server') === srv.url;
                 var mark = isSelected ? '<span style="color:#2ecc71">✓ </span>' : '';
@@ -97,7 +99,7 @@ function startMe() {
     // 4. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ (СИНЯ)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
-        param: { name: 'apply_reload', type: 'button' },
+        param: { name: 'apply_reload', type: 'select', values: {'-': ''}, default: '-' },
         field: { name: 'ЗМІНИТИ СЕРВЕР (Перезавантажити)' },
         onSelect: function() {
             var target = Lampa.Storage.get('location_server');
@@ -108,6 +110,7 @@ function startMe() {
             }
         },
         onRender: function(item) {
+            item.find('.settings-param__value').remove();
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
         }
     });
