@@ -11,46 +11,38 @@ var servers = [
 
 var server_states = {};
 
-function getFriendlyName(url) {
-    if (!url) return 'Lampa';
-    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
-    var found = servers.find(function(s) { 
-        var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
-        return host === sUrl;
-    });
-    return found ? found.name : 'Lampa - (' + host + ')';
-}
-
-// Покращена перевірка доступності через fetch
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
-    var domain = url.split('?')[0].replace(/\/$/, "");
-    var testUrl = (domain.indexOf('://') === -1) ? 'https://' + domain : domain;
+    
+    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
+    // ПЕРЕВІРКА №1: Якщо це поточний сервер - він доступний
+    if (host === window.location.hostname.toLowerCase()) return callback(true);
 
+    var testUrl = (url.indexOf('://') === -1) ? 'http://' + url : url;
+
+    // ПЕРЕВІРКА №2: Fetch без CORS
     var controller = new AbortController();
-    var timeout = setTimeout(function() {
+    var timer = setTimeout(function() {
         controller.abort();
         callback(false);
     }, 4000);
 
-    fetch(testUrl, { mode: 'no-cors', signal: controller.signal })
-        .then(function() {
-            clearTimeout(timeout);
-            callback(true);
-        })
-        .catch(function() {
-            clearTimeout(timeout);
-            callback(false);
-        });
+    fetch(testUrl, { mode: 'no-cors', cache: 'no-cache' }).then(function() {
+        clearTimeout(timer);
+        callback(true);
+    }).catch(function() {
+        clearTimeout(timer);
+        callback(false);
+    });
 }
 
 function startMe() { 
     var current_host = window.location.hostname.toLowerCase();
     var savedServer = Lampa.Storage.get('location_server', '-');
 
-    // ВИПРАВЛЕННЯ ЗАЦИКЛЕННЯ
-    // Редірект лише якщо: 1. Є збережений сервер. 2. Він не дорівнює поточному. 3. Це не "холостий" статус.
-    if (savedServer !== '-' && current_host !== savedServer.replace(/https?:\/\//, "").split('/')[0].toLowerCase()) {
+    // ВИПРАВЛЕННЯ ЗАЦИКЛЕННЯ:
+    // Редірект спрацює ТІЛЬКИ якщо збережений сервер НЕ є поточним.
+    if (savedServer !== '-' && savedServer.indexOf(current_host) === -1) {
         if (window.location.search.indexOf('redirect=1') === -1) {
             window.location.href = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer + '?redirect=1';
             return;
@@ -69,26 +61,22 @@ function startMe() {
         field: { name: 'Поточний сервер:' },
         onRender: function(item) {
             item.removeClass('selector selector-item').css({'pointer-events': 'none'});
-            checkOnline(current_host, function(isOk) {
-                var color = isOk ? '#2ecc71' : '#ff4c4c';
-                item.find('.settings-param__name').html(
-                    '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
-                    '<div>' +
-                    '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + getFriendlyName(current_host) + '</span>' +
-                    ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>' +
-                    '</div>'
-                );
-            });
+            var color = '#2ecc71'; // Поточний завжди зелений
+            item.find('.settings-param__name').html(
+                '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
+                '<div><span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_host + '</span>' +
+                ' <span style="color:' + color + '">- доступний</span></div>'
+            );
         }
     });
 
+    // Решта візуалу без змін
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'title_header', type: 'static' },
         field: { name: 'Виберіть сервер Lampa:' },
         onRender: function(item) {
-            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'padding-top': '15px'});
-            item.find('.settings-param__name').css('opacity', '0.6');
+            item.removeClass('selector selector-item').css({'padding-top': '15px'});
         }
     });
 
@@ -101,10 +89,6 @@ function startMe() {
                 item.addClass('selector selector-item').css('cursor', 'pointer');
                 
                 item.on('hover:enter click', function() {
-                    if (server_states[srv.url] === false) {
-                        Lampa.Noty.show('Сервер недоступний (перевірте VPN)');
-                        return;
-                    }
                     Lampa.Storage.set('location_server', srv.url);
                     Lampa.Settings.update();
                     Lampa.Noty.show('Вибрано: ' + srv.name);
@@ -115,11 +99,10 @@ function startMe() {
                         server_states[srv.url] = isOk;
                         var color = isOk ? '#2ecc71' : '#ff4c4c';
                         var isSelected = Lampa.Storage.get('location_server') === srv.url;
-                        
                         item.css('opacity', isOk ? '1' : '0.4');
                         item.find('.settings-param__name').html((isSelected ? '✓ ' : '') + srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
                     });
-                }, index * 200);
+                }, index * 300);
             }
         });
     });
@@ -129,13 +112,11 @@ function startMe() {
         param: { name: 'apply_reload', type: 'static' },
         field: { name: 'ЗМІНИТИ СЕРВЕР (Перезавантажити)' },
         onRender: function(item) {
-            item.addClass('selector selector-item').css({'cursor': 'pointer', 'margin-top': '15px'});
+            item.addClass('selector selector-item').css({'margin-top': '15px'});
             item.on('hover:enter click', function() {
                 var target = Lampa.Storage.get('location_server');
                 if (target && target !== '-') {
                     window.location.href = (target.indexOf('://') === -1 ? 'http://' : '') + target + '?redirect=1';
-                } else {
-                    Lampa.Noty.show('Сервер не вибрано');
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
