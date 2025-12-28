@@ -1,6 +1,9 @@
 (function() { 'use strict'; Lampa.Platform.tv();
 var icon_server_redirect = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 13H3V11H21V13ZM21 7H3V5H21V7ZM21 19H3V17H21V19Z" fill="white"/></svg>';
 
+// Протокол визначаємо як у робочому коді
+var server_protocol = window.location.protocol === "https:" ? 'https://' : 'http://';
+
 var servers = [
     { name: 'Lampa - (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app' },
     { name: 'Lampa (MX)', url: 'lampa.mx' }, 
@@ -20,12 +23,11 @@ function getFriendlyName(url) {
     return found ? found.name : 'Lampa - (' + host + ')';
 }
 
+// Перевірка через fetch (без favicon, чистий статус)
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
-    var protocol = window.location.protocol;
-    var testUrl = protocol + '//' + url.replace(/https?:\/\//, "");
-
-    fetch(testUrl, { mode: 'no-cors', cache: 'no-cache' })
+    var domain = url.replace(/https?:\/\//, "");
+    fetch(server_protocol + domain, { mode: 'no-cors', cache: 'no-cache' })
         .then(function() { callback(true); })
         .catch(function() { callback(false); });
 }
@@ -95,6 +97,7 @@ function startMe() {
         });
     });
 
+    // Кнопка переходу з логікою вашого працюючого коду
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'apply_reload', type: 'static' },
@@ -104,10 +107,10 @@ function startMe() {
             item.on('hover:enter click', function() {
                 var target = Lampa.Storage.get('location_server');
                 if (target && target !== '-') {
-                    // Використовуємо чистий редірект без додавання параметрів
-                    window.location.href = window.location.protocol + '//' + target.replace(/https?:\/\//, "");
+                    // Використовуємо конструкцію з вашого прикладу
+                    window.location.href = server_protocol + target;
                 } else {
-                    Lampa.Noty.show('Спочатку виберіть сервер зі списку');
+                    Lampa.Noty.show('Виберіть сервер зі списку');
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
@@ -115,6 +118,7 @@ function startMe() {
     });
 } 
 
+// Запуск плагіна
 if(window.appready) startMe(); 
 else { Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); }); } 
 })();
