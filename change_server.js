@@ -1,16 +1,29 @@
 (function() { 'use strict'; Lampa.Platform.tv();
 var icon_server_redirect = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 13H3V11H21V13ZM21 7H3V5H21V7ZM21 19H3V17H21V19Z" fill="white"/></svg>';
 
+// Список серверів винесено на початок для зручності та використання у функціях
+var servers = [
+    { name: 'Lampa - (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
+    { name: 'Lampa - (MX)', url: 'lampa.mx' }, 
+    { name: 'Lampa - (NNMTV)', url: 'lam.nnmtv.pw' }, 
+    { name: 'Lampa - (VIP)', url: 'lampa.vip' },
+    { name: 'Prisma', url: 'prisma.ws/' }
+];
+
 function getFriendlyName(url) {
-    if (url.indexOf('koyeb.app') !== -1) return 'Lampac Koyeb';
-    if (url.indexOf('lampa.mx') !== -1) return 'lampa.mx';
-    return url;
+    if (!url) return 'Невідомо';
+    // Шукаємо назву у нашому масиві серверів за збігом URL
+    var found = servers.find(function(s) { 
+        return url.indexOf(s.url.replace(/\/$/, "")) !== -1; 
+    });
+    return found ? found.name : url;
 }
 
 function checkOnline(url, callback) {
     if (url === '-' || url === '' || !url) return callback(true);
     var domain = url.split('?')[0].replace(/\/$/, "");
-    var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
+    // Перевіряємо через поточний протокол (http або https)
+    var testUrl = (domain.indexOf('://') === -1) ? window.location.protocol + '//' + domain : domain;
     var img = new Image();
     img.onload = function() { callback(true); };
     img.onerror = function() { callback(true); }; 
@@ -25,7 +38,8 @@ function startMe() {
     if (window.location.search != '?redirect=1') { 
         var savedServer = Lampa.Storage.get('location_server');
         if(savedServer && savedServer !== '-' && current_host !== savedServer) { 
-             window.location.href = 'http://' + savedServer + '?redirect=1'; 
+             // Використовуємо протокол сайту, з якого переходимо
+             window.location.href = window.location.protocol + '//' + savedServer + '?redirect=1'; 
         } 
     } else {
         Lampa.Storage.set('location_server','-');
@@ -37,7 +51,6 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // 1. ПОТОЧНИЙ СЕРВЕР (БЕЗ ФОКУСУ, КОЛІР ЯК У ЗАГОЛОВКА)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
@@ -54,7 +67,6 @@ function startMe() {
                 var isSelected = (Lampa.Storage.get('location_server') === '-' || !Lampa.Storage.get('location_server'));
                 var mark = isSelected ? '<span style="color:#2ecc71">✓ </span>' : '';
                 
-                // Додано opacity: 0.6 для головного надпису, щоб колір був як у заголовка
                 item.find('.settings-param__name').html(
                     '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
                     '<div>' +
@@ -66,7 +78,6 @@ function startMe() {
         }
     });
 
-    // 2. ЗАГОЛОВОК (БЕЗ ФОКУСУ)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'title_header', type: 'static' },
@@ -79,15 +90,6 @@ function startMe() {
             item.find('.settings-param__name').css('opacity', '0.6');
         }
     });
-
-    // 3. СПИСОК СЕРВЕРІВ (КЛІКАБЕЛЬНІ ПУЛЬТОМ)
-    var servers = [
-        { name: 'Lampa - (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
-        { name: 'Lampa - (MX)', url: 'lampa.mx' }, 
-        { name: 'Lampa - (NNMTV)', url: 'lam.nnmtv.pw' }, 
-        { name: 'Lampa - (VIP)', url: 'lampa.vip' },
-        { name: 'Prisma', url: 'prisma.ws/' }
-    ];
 
     servers.forEach(function(srv) {
         Lampa.SettingsApi.addParam({
@@ -112,7 +114,6 @@ function startMe() {
         });
     });
 
-    // 4. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ (КЛІКАБЕЛЬНА)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'apply_reload', type: 'static' },
@@ -126,7 +127,8 @@ function startMe() {
             item.on('hover:enter click', function() {
                 var target = Lampa.Storage.get('location_server');
                 if (target && target !== '-') {
-                    window.location.href = 'http://' + target + '?redirect=1';
+                    // Форсуємо перехід через http, якщо звичайний не спрацював
+                    window.location.href = window.location.protocol + '//' + target + '?redirect=1';
                 } else {
                     Lampa.Noty.show('Сервер не змінено');
                 }
