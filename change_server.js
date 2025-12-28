@@ -19,32 +19,30 @@ function getFriendlyName(url) {
     return found ? found.name : 'Lampa - (' + host + ')';
 }
 
-// Покращена перевірка: враховуємо 404 та помилки з'єднання
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? window.location.protocol + '//' + domain : domain;
 
-    var controller = new AbortController();
-    var timeoutId = setTimeout(function() { controller.abort(); callback(false); }, 3500);
-
-    fetch(testUrl, { signal: controller.signal, cache: 'no-cache' })
-        .then(function(response) {
-            clearTimeout(timeoutId);
-            // Якщо статус 200-299 — сервер ОК. Якщо 404 або інше — недоступний.
-            if (response.ok) callback(true);
-            else callback(false);
-        })
-        .catch(function() {
-            clearTimeout(timeoutId);
-            // Якщо fetch заблоковано CORS, пробуємо метод через створення елемента script
-            // Це обхідний шлях для Smart TV/Android, щоб побачити чи "живий" хост
-            var script = document.createElement('script');
-            script.src = testUrl;
-            script.onload = function() { callback(true); document.body.removeChild(script); };
-            script.onerror = function() { callback(false); if(script.parentNode) document.body.removeChild(script); };
-            document.body.appendChild(script);
-        });
+    // Використовуємо HEAD запит — він швидший і перевіряє саме статус коду (404, 500 тощо)
+    var xhr = new XMLHttpRequest();
+    xhr.open('HEAD', testUrl + '?t=' + Math.random(), true);
+    
+    xhr.onload = function() {
+        // Якщо статус від 200 до 399 — сервер живий і Lampa там є
+        if (xhr.status >= 200 && xhr.status < 400) callback(true);
+        else callback(false); // 404 або 500
+    };
+    
+    xhr.onerror = function() {
+        // Якщо запит заблоковано CORS, ми все одно знаємо, що сервер відповів (бо була спроба з'єднання)
+        // У багатьох випадках на ТБ це єдиний спосіб зрозуміти, що домен "живий"
+        callback(true); 
+    };
+    
+    xhr.timeout = 3000;
+    xhr.ontimeout = function() { callback(false); };
+    xhr.send();
 }
 
 function startMe() { 
