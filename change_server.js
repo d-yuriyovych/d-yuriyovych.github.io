@@ -7,18 +7,21 @@ function getFriendlyName(url) {
     return url;
 }
 
-// Нова функція перевірки через fetch (більш точна)
+// Перевірка шляхом створення тегу script (імітує запит при редиректі)
 function checkOnline(url, callback) {
     if (url === '-' || url === '') return callback(true);
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
     
-    fetch(testUrl, { mode: 'no-cors' }).then(function() {
-        callback(true);
-    }).catch(function() {
-        callback(false);
-    });
-    setTimeout(function() { callback(false); }, 3000);
+    var script = document.createElement('script');
+    script.src = testUrl + '/ping?v=' + Math.random();
+    script.onload = function() { cleanup(); callback(true); };
+    script.onerror = function() { cleanup(); callback(true); }; // Навіть помилка 404 означає що сервер живий
+    
+    function cleanup() { if (script.parentNode) script.parentNode.removeChild(script); }
+    
+    document.head.appendChild(script);
+    setTimeout(function() { cleanup(); callback(false); }, 4000);
 }
 
 function startMe() { 
@@ -34,77 +37,65 @@ function startMe() {
         Lampa.Storage.set('location_server','-');
     } 
 
+    // В головному меню плагіна: Поточний : Назва
     Lampa.SettingsApi.addComponent({ 
         component: 'location_redirect', 
-        name: 'Зміна сервера (Поточний: ' + current_friendly + ')', 
+        name: 'Поточний : ' + current_friendly, 
         icon: icon_server_redirect 
     }); 
 
     var servers = { 
-        '-': 'Поточний: ' + current_friendly, 
+        '-': 'Поточний : ' + current_friendly, 
         'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/': 'Lampac Koyeb', 
         'lampa.mx': 'lampa.mx' 
     }; 
 
     Lampa.SettingsApi.addParam({ 
         component: 'location_redirect', 
-        param: { 
-            name: 'location_server', 
-            type: 'select', 
-            values: servers, 
-            default: '-' 
-        }, 
+        param: { name: 'location_server', type: 'select', values: servers, default: '-' }, 
         field: { name: 'Виберіть сервер Lampa' }, 
-        onChange: function (value) { startMe(); },
+        onChange: function () { startMe(); },
         onRender: function(item) {
-            // Оновлюємо статус головного рядка
-            setTimeout(function() {
+            var updateItems = function() {
+                // 1. Оновлюємо статус у головному полі (те що вибрано зараз)
+                var $valField = item.find('.settings-param__value');
                 Object.keys(servers).forEach(function(key) {
-                    var domain = (key === '-') ? current_host : key;
-                    checkOnline(domain, function(isOk) {
-                        var color = isOk ? '#2ecc71' : '#ff4c4c';
-                        var status = isOk ? ' - доступний' : ' - недоступний';
-                        var $val = item.find('.settings-param__value');
-                        if ($val.text().indexOf(servers[key]) !== -1) {
-                            $val.html('<span style="color:' + color + '">' + servers[key] + status + '</span>');
-                        }
-                    });
+                    if ($valField.text().indexOf(servers[key].split(' -')[0]) !== -1) {
+                        checkOnline((key === '-') ? current_host : key, function(isOk) {
+                            var color = isOk ? '#2ecc71' : '#ff4c4c';
+                            var status = isOk ? ' - доступний' : ' - недоступний';
+                            $valField.html('<span style="color:' + color + '">' + servers[key].split(' -')[0] + status + '</span>');
+                        });
+                    }
                 });
-            }, 50);
 
-            // Слідкуємо за появою меню вибору (модалки)
-            var observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    mutation.addedNodes.forEach(function(node) {
-                        var $menu = $(node).find('.selector');
-                        if ($menu.length) {
-                            $menu.find('.selector__item').each(function() {
-                                var $el = $(this);
-                                var text = $el.text().trim();
-                                Object.keys(servers).forEach(function(sKey) {
-                                    if (text === servers[sKey]) {
-                                        checkOnline((sKey === '-') ? current_host : sKey, function(isOk) {
-                                            var color = isOk ? '#2ecc71' : '#ff4c4c';
-                                            var status = isOk ? ' - доступний' : ' - недоступний';
-                                            $el.html('<span style="color:' + color + '">' + servers[sKey] + status + '</span>');
-                                        });
-                                    }
-                                });
+                // 2. Оновлюємо статус у списку вибору (якщо він відкритий)
+                $('.selector__item').each(function() {
+                    var $el = $(this);
+                    var text = $el.text().split(' -')[0].trim();
+                    Object.keys(servers).forEach(function(sKey) {
+                        if (text === servers[sKey]) {
+                            checkOnline((sKey === '-') ? current_host : sKey, function(isOk) {
+                                var color = isOk ? '#2ecc71' : '#ff4c4c';
+                                var status = isOk ? ' - доступний' : ' - недоступний';
+                                $el.html('<span style="color:' + color + '">' + servers[sKey] + status + '</span>');
                             });
                         }
                     });
                 });
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
+            };
+
+            // Запускаємо перевірку відразу і кожні 2 секунди поки користувач у меню
+            updateItems();
+            var timer = setInterval(updateItems, 2500);
+            
+            // Очищення таймера при закритті
+            item.on('destroy', function() { clearInterval(timer); });
         }
     }); 
 } 
 
 if(window.appready) startMe(); 
-else { 
-    Lampa.Listener.follow('app', function(e) { 
-        if(e.type == 'ready') { startMe(); } 
-    }); 
-} 
+else { Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); }); } 
 })();
 
