@@ -48,24 +48,9 @@ function checkOnline(url, callback) {
 function startMe() { 
     var current_host = window.location.hostname.toLowerCase().split(':')[0];
     var current_friendly = getFriendlyName(current_host);
-    var savedServer = Lampa.Storage.get('location_server', '-');
 
-    // ПЕРЕВІРКА РЕДІРЕКТУ ТА ЗАХИСТ ВІД ПЕТЛІ
-    if (window.location.search.indexOf('redirect=1') !== -1) {
-        // Якщо ми вже прийшли по редіректу - негайно чистимо пам'ять
-        Lampa.Storage.set('location_server', '-');
-    } else if (savedServer !== '-' && savedServer !== '') {
-        var cleanSaved = savedServer.replace(/https?:\/\//, "").split('/')[0].split(':')[0].toLowerCase();
-        // Якщо ми НЕ на тому сервері, що збережений - переходимо
-        if (current_host !== cleanSaved) {
-            var targetUrl = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer;
-            window.location.href = targetUrl + (targetUrl.indexOf('?') > -1 ? '&' : '?') + 'redirect=1';
-            return;
-        } else {
-            // Якщо випадково опинилися на потрібному - чистимо
-            Lampa.Storage.set('location_server', '-');
-        }
-    }
+    // ПОВНЕ ВИДАЛЕННЯ АВТО-РЕДІРЕКТУ ДЛЯ ЗАПОБІГАННЯ ПЕТЛІ
+    Lampa.Storage.set('location_server', '-');
 
     Lampa.SettingsApi.addComponent({ 
         component: 'location_redirect', 
@@ -140,8 +125,8 @@ function startMe() {
             item.addClass('selector selector-item').css({'cursor': 'pointer', 'margin-top': '15px'});
             item.on('hover:enter click', function() {
                 if (selected_target) {
-                    Lampa.Storage.set('location_server', selected_target);
                     var finalUrl = (selected_target.indexOf('://') === -1 ? 'http://' : '') + selected_target;
+                    // Використовуємо прямий перехід без запису в пам'ять
                     window.location.href = finalUrl + (finalUrl.indexOf('?') > -1 ? '&' : '?') + 'redirect=1';
                 } else {
                     Lampa.Noty.show('Виберіть сервер зі списку');
