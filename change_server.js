@@ -2,11 +2,11 @@
 var icon_server_redirect = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 13H3V11H21V13ZM21 7H3V5H21V7ZM21 19H3V17H21V19Z" fill="white"/></svg>';
 
 var servers = [
-    { name: 'Lampa (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
+    { name: 'Lampa (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app' },
     { name: 'Lampa (MX)', url: 'lampa.mx' }, 
     { name: 'Lampa (NNMTV)', url: 'lam.nnmtv.pw' }, 
     { name: 'Lampa (VIP)', url: 'lampa.vip' },
-    { name: 'Prisma', url: 'prisma.ws/' }
+    { name: 'Prisma', url: 'prisma.ws' }
 ];
 
 var states_cache = {}; 
@@ -42,7 +42,7 @@ function checkOnline(url, callback) {
 }
 
 function startMe() { 
-    // ОЧИЩЕННЯ КЕШУ ДЛЯ ПОВТОРНОЇ ПЕРЕВІРКИ
+    // ПРИМУСОВЕ ОЧИЩЕННЯ ПРИ КОЖНОМУ ВИКЛИКУ (ВХОДІ В МЕНЮ)
     states_cache = {};
 
     var current_host = window.location.hostname;
@@ -121,15 +121,15 @@ function startMe() {
                 if (target && target !== '-') {
                     var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // ПРИМУСОВИЙ ЗАПИС У ПАМ'ЯТЬ ДОДАТКА
+                    // Запис у налаштування
                     Lampa.Storage.set('server_url', clean);
                     Lampa.Storage.set('location_server', '-');
                     
-                    Lampa.Noty.show('Перезавантаження...');
+                    Lampa.Noty.show('Перехід на ' + clean);
                     
                     setTimeout(function(){
-                        // Спроба через повне оновлення з новим URL
-                        window.location.href = 'http://' + clean + '/index.html?redirect=' + Date.now();
+                        // Пряма адреса без https та index.html для уникнення помилки ERR_HTTP_RESPONSE_CODE_FAILURE
+                        window.location.replace('http://' + clean + '/?r=' + Date.now());
                     }, 300);
                 } else {
                     Lampa.Noty.show('Виберіть доступний сервер');
@@ -140,9 +140,11 @@ function startMe() {
     });
 } 
 
-// Слухаємо відкриття налаштувань для оновлення статусів
+// Гарантоване оновлення при вході в налаштування
 Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); });
 Lampa.Listener.follow('settings', function(e) {
-    if(e.type == 'open' && e.name == 'location_redirect') startMe();
+    if(e.type == 'open' && e.name == 'location_redirect') {
+        startMe();
+    }
 });
 })();
