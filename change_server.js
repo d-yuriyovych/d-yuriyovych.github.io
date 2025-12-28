@@ -1,112 +1,148 @@
-(function () {
-    'use strict';
+(function() { 'use strict'; Lampa.Platform.tv();
+var icon_server_redirect = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 13H3V11H21V13ZM21 7H3V5H21V7ZM21 19H3V17H21V19Z" fill="white"/></svg>';
 
-    Lampa.Utils.putScript(['https://lampa.mx/plugins/redirect.js'], () => {});
+var servers = [
+    { name: 'Lampa - (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app' },
+    { name: 'Lampa (MX)', url: 'lampa.mx' }, 
+    { name: 'Lampa (NNMTV)', url: 'lam.nnmtv.pw' }, 
+    { name: 'Lampa (VIP)', url: 'lampa.vip' },
+    { name: 'Prisma', url: 'prisma.ws' }
+];
 
-    function RedirectPlugin() {
-        var network = new Lampa.Reguest();
-        var servers = [
-            { title: 'Lampa.mx', url: 'https://lampa.mx' },
-            { title: 'Bwa.one', url: 'https://bwa.one' },
-            { title: 'Lampa.run', url: 'https://lampa.run' }
-        ];
-        
-        var is_switching = false;
+var server_states = {};
 
-        // Перевірка доступності з захистом від кешу та таймаутом
-        this.checkServer = function (url, callback) {
-            var controller = new AbortController();
-            var timeoutId = setTimeout(() => controller.abort(), 5000); // 5 секунд на відповідь
+function getFriendlyName(url) {
+    if (!url) return 'Lampa';
+    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
+    var found = servers.find(function(s) { 
+        var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
+        return host === sUrl;
+    });
+    return found ? found.name : 'Lampa - (' + host + ')';
+}
 
-            fetch(url + '/?v=' + Math.random(), { 
-                method: 'HEAD', 
-                mode: 'no-cors',
-                signal: controller.signal 
-            })
-            .then(() => {
-                clearTimeout(timeoutId);
-                callback(true);
-            })
-            .catch(() => {
-                clearTimeout(timeoutId);
-                callback(false);
+// Покращена перевірка доступності через fetch
+function checkOnline(url, callback) {
+    if (!url || url === '-') return callback(true);
+    var domain = url.split('?')[0].replace(/\/$/, "");
+    var testUrl = (domain.indexOf('://') === -1) ? 'https://' + domain : domain;
+
+    var controller = new AbortController();
+    var timeout = setTimeout(function() {
+        controller.abort();
+        callback(false);
+    }, 4000);
+
+    fetch(testUrl, { mode: 'no-cors', signal: controller.signal })
+        .then(function() {
+            clearTimeout(timeout);
+            callback(true);
+        })
+        .catch(function() {
+            clearTimeout(timeout);
+            callback(false);
+        });
+}
+
+function startMe() { 
+    var current_host = window.location.hostname.toLowerCase();
+    var savedServer = Lampa.Storage.get('location_server', '-');
+
+    // ВИПРАВЛЕННЯ ЗАЦИКЛЕННЯ
+    // Редірект лише якщо: 1. Є збережений сервер. 2. Він не дорівнює поточному. 3. Це не "холостий" статус.
+    if (savedServer !== '-' && current_host !== savedServer.replace(/https?:\/\//, "").split('/')[0].toLowerCase()) {
+        if (window.location.search.indexOf('redirect=1') === -1) {
+            window.location.href = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer + '?redirect=1';
+            return;
+        }
+    }
+
+    Lampa.SettingsApi.addComponent({ 
+        component: 'location_redirect', 
+        name: 'Зміна сервера', 
+        icon: icon_server_redirect 
+    }); 
+
+    Lampa.SettingsApi.addParam({
+        component: 'location_redirect',
+        param: { name: 'main_status', type: 'static' },
+        field: { name: 'Поточний сервер:' },
+        onRender: function(item) {
+            item.removeClass('selector selector-item').css({'pointer-events': 'none'});
+            checkOnline(current_host, function(isOk) {
+                var color = isOk ? '#2ecc71' : '#ff4c4c';
+                item.find('.settings-param__name').html(
+                    '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
+                    '<div>' +
+                    '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + getFriendlyName(current_host) + '</span>' +
+                    ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>' +
+                    '</div>'
+                );
             });
-        };
+        }
+    });
 
-        this.apply = function () {
-            var _this = this;
+    Lampa.SettingsApi.addParam({
+        component: 'location_redirect',
+        param: { name: 'title_header', type: 'static' },
+        field: { name: 'Виберіть сервер Lampa:' },
+        onRender: function(item) {
+            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'padding-top': '15px'});
+            item.find('.settings-param__name').css('opacity', '0.6');
+        }
+    });
 
-            // Додавання кнопки в шапку (незалежно від сервера)
-            Lampa.Listener.follow('app', function (e) {
-                if (e.type === 'ready') {
-                    _this.addHeaderButton();
-                }
-            });
-        };
-
-        this.addHeaderButton = function () {
-            var header = $('.header');
-            if (!header.find('.header__server-change').length) {
-                var btn = $('<div class="header__item header__item--button header__server-change">' +
-                    '<svg height="36" viewBox="0 0 24 24" width="36" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h24v24H0z" fill="none"/><path d="M19 8l-4 4h3c0 3.31-2.69 6-6 6a5.87 5.87 0 0 1-2.8-.7l-1.46 1.46A7.93 7.93 0 0 0 12 20c4.42 0 8-3.58 8-8h3l-4-4zM6 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46A7.93 7.93 0 0 0 12 4c-4.42 0-8 3.58-8 8H1l4 4 4-4H6z" fill="white"/></svg>' +
-                    '</div>');
-
-                btn.on('hover:enter', function () {
-                    _this.showServerSelect();
+    servers.forEach(function(srv, index) {
+        Lampa.SettingsApi.addParam({
+            component: 'location_redirect',
+            param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'static' },
+            field: { name: srv.name },
+            onRender: function(item) {
+                item.addClass('selector selector-item').css('cursor', 'pointer');
+                
+                item.on('hover:enter click', function() {
+                    if (server_states[srv.url] === false) {
+                        Lampa.Noty.show('Сервер недоступний (перевірте VPN)');
+                        return;
+                    }
+                    Lampa.Storage.set('location_server', srv.url);
+                    Lampa.Settings.update();
+                    Lampa.Noty.show('Вибрано: ' + srv.name);
                 });
 
-                header.find('.header__items').append(btn);
-            }
-        };
-
-        this.showServerSelect = function () {
-            var _this = this;
-            Lampa.Select.show({
-                title: 'Зміна сервера',
-                items: servers,
-                onSelect: function (item) {
-                    is_switching = true; // Блокуємо авто-редирект
-                    Lampa.Activity.push({
-                        url: item.url,
-                        title: 'Перехід на ' + item.title,
-                        component: 'full_reboot'
+                setTimeout(function() {
+                    checkOnline(srv.url, function(isOk) {
+                        server_states[srv.url] = isOk;
+                        var color = isOk ? '#2ecc71' : '#ff4c4c';
+                        var isSelected = Lampa.Storage.get('location_server') === srv.url;
+                        
+                        item.css('opacity', isOk ? '1' : '0.4');
+                        item.find('.settings-param__name').html((isSelected ? '✓ ' : '') + srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
                     });
-                    window.location.href = item.url;
-                },
-                onBack: function () {
-                    Lampa.Controller.toggle('header');
+                }, index * 200);
+            }
+        });
+    });
+
+    Lampa.SettingsApi.addParam({
+        component: 'location_redirect',
+        param: { name: 'apply_reload', type: 'static' },
+        field: { name: 'ЗМІНИТИ СЕРВЕР (Перезавантажити)' },
+        onRender: function(item) {
+            item.addClass('selector selector-item').css({'cursor': 'pointer', 'margin-top': '15px'});
+            item.on('hover:enter click', function() {
+                var target = Lampa.Storage.get('location_server');
+                if (target && target !== '-') {
+                    window.location.href = (target.indexOf('://') === -1 ? 'http://' : '') + target + '?redirect=1';
+                } else {
+                    Lampa.Noty.show('Сервер не вибрано');
                 }
             });
-        };
+            item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
+        }
+    });
+} 
 
-        // Логіка перевірки поточного стану для запобігання зацикленню
-        this.initAutoCheck = function() {
-            var current_url = window.location.origin;
-            
-            // Якщо ми вже в процесі ручної зміни - нічого не робимо
-            if (is_switching) return;
-
-            this.checkServer(current_url, (available) => {
-                if (!available) {
-                    // Шукаємо перший доступний сервер, який НЕ є поточним
-                    var next_server = servers.find(s => s.url !== current_url);
-                    if (next_server) {
-                        this.checkServer(next_server.url, (next_available) => {
-                            if (next_available) {
-                                window.location.href = next_server.url;
-                            }
-                        });
-                    }
-                }
-            });
-        };
-    }
-
-    if (!window.redirect_plugin_initialized) {
-        var plugin = new RedirectPlugin();
-        plugin.apply();
-        // Запуск перевірки з невеликою затримкою, щоб VPN встиг з'єднатися
-        setTimeout(() => plugin.initAutoCheck(), 3000);
-        window.redirect_plugin_initialized = true;
-    }
+if(window.appready) startMe(); 
+else { Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); }); } 
 })();
