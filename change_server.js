@@ -3,9 +3,9 @@ var icon_server_redirect = '<svg width="24" height="24" viewBox="0 0 24 24" fill
 
 var servers = [
     { name: 'Lampa - (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
-    { name: 'Lampa - (MX)', url: 'lampa.mx' }, 
-    { name: 'Lampa - (NNMTV)', url: 'lam.nnmtv.pw' }, 
-    { name: 'Lampa - (VIP)', url: 'lampa.vip' },
+    { name: 'Lampa (MX)', url: 'lampa.mx' }, 
+    { name: 'Lampa (NNMTV)', url: 'lam.nnmtv.pw' }, 
+    { name: 'Lampa (VIP)', url: 'lampa.vip' },
     { name: 'Prisma', url: 'prisma.ws/' }
 ];
 
@@ -115,7 +115,7 @@ function startMe() {
                 item.on('hover:enter click', function() {
                     // ПЕРЕВІРКА ДОСТУПНОСТІ ПЕРЕД ВИБОРОМ
                     if (server_states[srv.url] === false) {
-                        Lampa.Noty.show('Сервер недоступний (перевірте VPN)');
+                        Lampa.Noty.show('Сервер недоступний');
                         return;
                     }
                     Lampa.Storage.set('location_server', srv.url);
