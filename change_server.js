@@ -37,10 +37,10 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // Рядок 1: ПОТОЧНИЙ СТАТУС (Один вгорі)
+    // 1. ПЕРШИЙ РЯДОК: ПОТОЧНИЙ СЕРВЕР (ПРОСТО ІНФОРМАЦІЯ)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
-        param: { name: 'status_info', type: 'static' },
+        param: { name: 'current_info_only', type: 'static' },
         field: { name: 'Поточний : ' + current_friendly },
         onRender: function(item) {
             checkOnline(current_host, function(isOk) {
@@ -51,23 +51,23 @@ function startMe() {
         }
     });
 
-    // Рядок 2: ЗАГОЛОВОК
+    // 2. ЗАГОЛОВОК З ДВОКРАПКОЮ
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
-        param: { name: 'header_sel', type: 'static' },
+        param: { name: 'header_text', type: 'static' },
         field: { name: 'Виберіть сервер Lampa:' }
     });
 
-    // СПИСОК СЕРВЕРІВ (Тип scroll не відкриває меню вибору)
-    var list = [
+    // 3. СПИСОК СЕРВЕРІВ (КЛІКАБЕЛЬНІ БЕЗ ПІДМЕНЮ)
+    var servers = [
         { name: 'Lampac Koyeb', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
         { name: 'lampa.mx', url: 'lampa.mx' }
     ];
 
-    list.forEach(function(srv) {
+    servers.forEach(function(srv) {
         Lampa.SettingsApi.addParam({
             component: 'location_redirect',
-            param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'scroll' },
+            param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'title' },
             field: { name: srv.name },
             onSelect: function() {
                 Lampa.Storage.set('location_server', srv.url);
@@ -76,9 +76,11 @@ function startMe() {
             },
             onRender: function(item) {
                 var nameEl = item.find('.settings-param__name');
+                // Додаємо галочку ТІЛЬКИ якщо сервер вибраний у налаштуваннях
                 if (Lampa.Storage.get('location_server') === srv.url) {
                     nameEl.prepend('<span style="color:#2ecc71">✓ </span>');
                 }
+                // Статус сервера
                 checkOnline(srv.url, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
                     nameEl.append(' <span style="color:' + color + '; font-size: 0.85em;">- доступний</span>');
@@ -87,21 +89,20 @@ function startMe() {
         });
     });
 
-    // КНОПКА ПЕРЕЗАВАНТАЖЕННЯ (Синя)
+    // 4. СИНЯ КНОПКА ПЕРЕЗАВАНТАЖЕННЯ
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
-        param: { name: 'apply_action', type: 'scroll' },
+        param: { name: 'apply_btn', type: 'title' },
         field: { name: 'ЗМІНИТИ СЕРВЕР (Перезавантажити)' },
         onSelect: function() {
             var target = Lampa.Storage.get('location_server');
-            if (target && target !== '-') {
-                window.location.href = 'http://' + target + '?redirect=1';
+            if (!target || target === '-') {
+                Lampa.Noty.show('Спочатку виберіть сервер зі списку');
             } else {
-                Lampa.Noty.show('Виберіть інший сервер зі списку');
+                window.location.href = 'http://' + target + '?redirect=1';
             }
         },
         onRender: function(item) {
-            item.css('margin-top', '15px');
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
         }
     });
