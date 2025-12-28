@@ -21,11 +21,10 @@ function getFriendlyName(url) {
     return found ? found.name : 'Lampa - (' + host + ')';
 }
 
+// Перевірка через fetch (надійніше за iframe)
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
     var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
-    
-    // Якщо перевіряємо сервер, на якому зараз знаходимось - він точно онлайн
     if (host === window.location.hostname.toLowerCase()) return callback(true);
 
     var domain = url.split('?')[0].replace(/\/$/, "");
@@ -51,14 +50,16 @@ function startMe() {
     var current_friendly = getFriendlyName(current_host);
     var savedServer = Lampa.Storage.get('location_server', '-');
 
-    // ВИПРАВЛЕННЯ ЗАЦИКЛЕННЯ
-    // Редірект тільки якщо збережений сервер не є поточним хостом
+    // ЛОГІКА РЕДІРЕКТУ (ВИПРАВЛЕНА)
     if (savedServer !== '-' && savedServer !== '') {
-        var cleanSaved = savedServer.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
-        if (current_host !== cleanSaved && window.location.search.indexOf('redirect=1') === -1) {
-             window.location.href = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer + '?redirect=1'; 
-             return;
-        } 
+        var cleanSaved = savedServer.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
+        // Редірект тільки якщо ми НЕ на тому сервері, який збережено
+        if (current_host !== cleanSaved) {
+            if (window.location.search.indexOf('redirect=1') === -1) {
+                window.location.href = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer + '?redirect=1'; 
+                return;
+            }
+        }
     }
 
     Lampa.SettingsApi.addComponent({ 
