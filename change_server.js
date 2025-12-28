@@ -50,18 +50,20 @@ function startMe() {
     var current_friendly = getFriendlyName(current_host);
     var savedServer = Lampa.Storage.get('location_server', '-');
 
-    // ПЕРЕВІРКА РЕДІРЕКТУ ПРИ ЗАПУСКУ (БЕЗ ЗАЦИКЛЕННЯ)
-    if (savedServer !== '-' && savedServer !== '') {
+    // ПЕРЕВІРКА РЕДІРЕКТУ ТА ЗАХИСТ ВІД ПЕТЛІ
+    if (window.location.search.indexOf('redirect=1') !== -1) {
+        // Якщо ми вже прийшли по редіректу - негайно чистимо пам'ять
+        Lampa.Storage.set('location_server', '-');
+    } else if (savedServer !== '-' && savedServer !== '') {
         var cleanSaved = savedServer.replace(/https?:\/\//, "").split('/')[0].split(':')[0].toLowerCase();
-        
-        if (current_host === cleanSaved) {
-            // Ми вже на місці - очищуємо Storage, щоб зупинити логіку редіректу
-            Lampa.Storage.set('location_server', '-');
-        } else if (window.location.search.indexOf('redirect=1') === -1) {
-            // Переходимо на новий сервер
-            var finalUrl = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer;
-            window.location.href = finalUrl + (finalUrl.indexOf('?') > -1 ? '&' : '?') + 'redirect=1';
+        // Якщо ми НЕ на тому сервері, що збережений - переходимо
+        if (current_host !== cleanSaved) {
+            var targetUrl = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer;
+            window.location.href = targetUrl + (targetUrl.indexOf('?') > -1 ? '&' : '?') + 'redirect=1';
             return;
+        } else {
+            // Якщо випадково опинилися на потрібному - чистимо
+            Lampa.Storage.set('location_server', '-');
         }
     }
 
@@ -110,9 +112,8 @@ function startMe() {
                 
                 item.on('hover:enter click', function() {
                     selected_target = srv.url; 
-                    Lampa.Noty.show('Вибрано: ' + srv.name);
+                    Lampa.Noty.show('Вибрано: ' + srv.name + '. Тепер натисніть кнопку "ЗМІНИТИ СЕРВЕР"');
                     
-                    // Повертаємо вашу логіку з галочкою
                     item.parent().find('.settings-param__name').each(function() {
                         $(this).html($(this).html().replace('✓ ', ''));
                     });
@@ -139,7 +140,6 @@ function startMe() {
             item.addClass('selector selector-item').css({'cursor': 'pointer', 'margin-top': '15px'});
             item.on('hover:enter click', function() {
                 if (selected_target) {
-                    // Записуємо в пам'ять і робимо редірект
                     Lampa.Storage.set('location_server', selected_target);
                     var finalUrl = (selected_target.indexOf('://') === -1 ? 'http://' : '') + selected_target;
                     window.location.href = finalUrl + (finalUrl.indexOf('?') > -1 ? '&' : '?') + 'redirect=1';
