@@ -26,7 +26,7 @@ function checkOnline(url, callback) {
     if (states_cache[domain] !== undefined) return callback(states_cache[domain]);
 
     var controller = new AbortController();
-    var timeoutId = setTimeout(function() { controller.abort(); }, 2000); // Таймаут 2 сек
+    var timeoutId = setTimeout(function() { controller.abort(); }, 2000); 
 
     fetch('http://' + domain, { mode: 'no-cors', signal: controller.signal })
         .then(function() {
@@ -113,22 +113,19 @@ function startMe() {
                 if (target && target !== '-') {
                     var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // Зберігаємо адресу у внутрішній пам'яті додатка
+                    // Крок 1: Оновлюємо внутрішній конфиг
                     Lampa.Storage.set('server_url', clean);
                     Lampa.Storage.set('location_server', '-');
                     
-                    Lampa.Noty.show('Перехід на ' + clean);
-                    
-                    // Спроба жорсткого перезапуску через 500мс
-                    setTimeout(function(){
-                        if(Lampa.Platform.is('android')) {
-                            window.location.replace('http://' + clean);
-                            // Якщо replace не спрацював, іноді допомагає вихід (додаток перезапуститься сам)
-                            if(typeof Lampa.Platform.exit == 'function') Lampa.Platform.exit();
-                        } else {
-                            window.location.href = 'http://' + clean;
-                        }
-                    }, 500);
+                    // Крок 2: Примусовий запуск через Platform API
+                    // Це "вбиває" поточну сесію та запускає нову адресу
+                    if (Lampa.Platform.is('android')) {
+                        Lampa.Platform.run({
+                            url: 'http://' + clean
+                        });
+                    } else {
+                        window.location.replace('http://' + clean + '?redirect=1');
+                    }
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
