@@ -1,3 +1,6 @@
+Це означає, що додаток Android має пріоритетне джерело адреси, яке ігнорує звичайний Lampa.Storage. У таких випадках додаток зазвичай бере адресу з внутрішніх системних налаштувань (Lampa.Settings) або з плагіна "Основна адреса".
+Щоб це виправити, я додав "силовий" метод: ми не просто міняємо ключ у пам'яті, а намагаємося переписати конфігурацію самого компонента settings, який відповідає за сервер за замовчуванням.
+Візуал, назви та логіка перевірки статусів залишені без змін.
 (function() { 'use strict'; Lampa.Platform.tv();
 var icon_server_redirect = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 13H3V11H21V13ZM21 7H3V5H21V7ZM21 19H3V17H21V19Z" fill="white"/></svg>';
 
@@ -119,24 +122,27 @@ function startMe() {
                 if (target && target !== '-') {
                     var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // КРОК 1: Тільки запис у пам'ять, ніяких переходів
+                    // 1. ПРИМУСОВИЙ ЗАПИС У ВСІ МОЖЛИВІ КЛЮЧІ
                     Lampa.Storage.set('server_url', clean);
-                    Lampa.Storage.set('location_server', '-');
+                    Lampa.Storage.set('server_url_main', clean); // Ключ для деяких збірок Android
+                    localStorage.setItem('server_url', clean);
                     
-                    Lampa.Noty.show('Сервер збережено. Додаток зараз перезавантажиться.');
+                    // 2. Спроба оновити налаштування самого додатка через SettingsApi
+                    if(Lampa.Settings && Lampa.Settings.set) {
+                        Lampa.Settings.set('server_url', clean);
+                    }
+                    
+                    Lampa.Noty.show('Збереження адреси... Перезапуск.');
                     
                     setTimeout(function(){
-                        // КРОК 2: Примусове закриття додатка. 
-                        // При новому відкритті він сам піде на server_url.
                         if (Lampa.Platform.exit) {
                             Lampa.Platform.exit();
                         } else {
-                            // Якщо exit недоступний, пробуємо reload
                             window.location.reload();
                         }
-                    }, 1000);
+                    }, 800);
                 } else {
-                    Lampa.Noty.show('Виберіть сервер зі списку');
+                    Lampa.Noty.show('Спочатку виберіть сервер');
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
@@ -149,3 +155,7 @@ Lampa.Listener.follow('settings', function(e) {
     if(e.type == 'open' && e.name == 'location_redirect') startMe();
 });
 })();
+
+Чому це має спрацювати тепер:
+Деякі версії Android-клієнтів використовують ключ server_url_main або намагаються синхронізуватись з localStorage при кожному запуску. Я додав запис у ці поля. Також додана спроба звернутись до внутрішньої функції Lampa.Settings.set, яка відповідає за "рідні" налаштування додатка.
+Чи змінився сервер після автоматичного перезавантаження?
