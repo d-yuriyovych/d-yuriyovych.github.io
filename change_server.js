@@ -22,7 +22,6 @@ function startMe() {
     var current_host = window.location.hostname;
     var current_friendly = getFriendlyName(current_host);
 
-    // Редирект працює лише за наявності мітки ?redirect=1
     if (window.location.search != '?redirect=1') { 
         var savedServer = Lampa.Storage.get('location_server');
         if(savedServer && savedServer !== '-' && current_host !== savedServer) { 
@@ -44,51 +43,54 @@ function startMe() {
         { name: 'lampa.mx', url: 'lampa.mx' }
     ];
 
-    // Заголовок
+    // 1. ПОТОЧНИЙ СЕРВЕР (тепер на самому верху)
+    Lampa.SettingsApi.addParam({
+        component: 'location_redirect',
+        param: { name: 'location_info', type: 'static' },
+        field: { name: 'Поточний : ' + current_friendly }
+    });
+
+    // 2. ЗАГОЛОВОК З ДВОКРАПКОЮ
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'title_select', type: 'static' },
-        field: { name: 'Виберіть сервер Lampa' }
+        field: { name: 'Виберіть сервер Lampa:' }
     });
 
-    // Список серверів (кожен як окрема кнопка)
+    // 3. СПИСОК СЕРВЕРІВ (тип button для клікабельності)
     serverList.forEach(function(srv) {
         Lampa.SettingsApi.addParam({
             component: 'location_redirect',
-            param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'static' },
+            param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'button' },
             field: { name: srv.name },
-            onChange: function() {
+            onSelect: function() { // Використовуємо onSelect для кнопок
                 Lampa.Storage.set('location_server', srv.url);
                 Lampa.Noty.show('Вибрано: ' + srv.name);
-                // Оновлюємо інтерфейс, щоб показати вибір
-                Lampa.Settings.update();
+                Lampa.Settings.update(); // Оновлюємо візуально галочку
             },
             onRender: function(item) {
                 var domain = (srv.url === '-') ? current_host : srv.url;
-                var $valField = item.find('.settings-param__value');
                 
-                // Перевіряємо статус
                 checkOnline(domain, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
                     var status = isOk ? ' - доступний' : ' - недоступний';
                     item.find('.settings-param__name').append(' <span style="color:' + color + '; font-size: 0.8em;">' + status + '</span>');
                 });
 
-                // Виділяємо вибраний сервер
                 if (Lampa.Storage.get('location_server') === srv.url) {
                     item.css('background', 'rgba(255,255,255,0.1)');
-                    item.find('.settings-param__name').prepend('✓ ');
+                    item.find('.settings-param__name').prepend('<span class="active_check">✓ </span>');
                 }
             }
         });
     });
 
-    // Кнопка редиректу в самому низу
+    // 4. КНОПКА РЕДИРЕКТУ (тип button)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
-        param: { name: 'apply_redirect', type: 'static' },
+        param: { name: 'apply_redirect', type: 'button' },
         field: { name: 'ЗМІНИТИ СЕРВЕР (Перезавантажити)' },
-        onChange: function() {
+        onSelect: function() {
             var target = Lampa.Storage.get('location_server');
             if (!target || target === '-') {
                 Lampa.Noty.show('Ви вже на цьому сервері');
@@ -98,7 +100,7 @@ function startMe() {
         },
         onRender: function(item) {
             item.css('margin-top', '20px');
-            item.find('.settings-param__name').css('color', '#3498db');
+            item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
         }
     });
 } 
