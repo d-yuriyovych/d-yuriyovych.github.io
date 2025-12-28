@@ -10,7 +10,7 @@ var servers = [
 ];
 
 var server_states = {};
-var selected_target = null; // Тимчасова змінна для вибору
+var selected_target = null; 
 
 function getFriendlyName(url) {
     if (!url) return 'Lampa';
@@ -48,10 +48,22 @@ function checkOnline(url, callback) {
 function startMe() { 
     var current_host = window.location.hostname.toLowerCase().split(':')[0];
     var current_friendly = getFriendlyName(current_host);
-    
-    // КРОК 1: ВБИВАЄМО ЗАЦИКЛЕННЯ ПРИ СТАРТІ
-    // Щойно ми зайшли на сторінку - чистимо команду на редірект
-    Lampa.Storage.set('location_server', '-');
+    var savedServer = Lampa.Storage.get('location_server', '-');
+
+    // ПЕРЕВІРКА РЕДІРЕКТУ ПРИ ЗАПУСКУ (БЕЗ ЗАЦИКЛЕННЯ)
+    if (savedServer !== '-' && savedServer !== '') {
+        var cleanSaved = savedServer.replace(/https?:\/\//, "").split('/')[0].split(':')[0].toLowerCase();
+        
+        if (current_host === cleanSaved) {
+            // Ми вже на місці - очищуємо Storage, щоб зупинити логіку редіректу
+            Lampa.Storage.set('location_server', '-');
+        } else if (window.location.search.indexOf('redirect=1') === -1) {
+            // Переходимо на новий сервер
+            var finalUrl = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer;
+            window.location.href = finalUrl + (finalUrl.indexOf('?') > -1 ? '&' : '?') + 'redirect=1';
+            return;
+        }
+    }
 
     Lampa.SettingsApi.addComponent({ 
         component: 'location_redirect', 
@@ -97,17 +109,14 @@ function startMe() {
                 item.addClass('selector selector-item').css('cursor', 'pointer');
                 
                 item.on('hover:enter click', function() {
-                    if (server_states[srv.url] === false) {
-                        Lampa.Noty.show('Сервер недоступний');
-                        return;
-                    }
-                    
-                    // КРОК 2: ТІЛЬКИ ВІЗУАЛЬНИЙ ВИБІР
                     selected_target = srv.url; 
                     Lampa.Noty.show('Вибрано: ' + srv.name);
                     
-                    item.parent().find('.settings-param__name').css('color', 'white');
-                    item.find('.settings-param__name').css('color', 'yellow');
+                    // Повертаємо вашу логіку з галочкою
+                    item.parent().find('.settings-param__name').each(function() {
+                        $(this).html($(this).html().replace('✓ ', ''));
+                    });
+                    item.find('.settings-param__name').prepend('✓ ');
                 });
 
                 setTimeout(function() {
@@ -130,19 +139,10 @@ function startMe() {
             item.addClass('selector selector-item').css({'cursor': 'pointer', 'margin-top': '15px'});
             item.on('hover:enter click', function() {
                 if (selected_target) {
-                    var host_to_go = selected_target.replace(/https?:\/\//, "").split('/')[0].split(':')[0].toLowerCase();
-                    
-                    // Якщо ми вже тут - нічого не робимо
-                    if (host_to_go === current_host) {
-                        Lampa.Noty.show('Ви вже на цьому сервері');
-                        return;
-                    }
-
-                    // КРОК 3: ПЕРЕХІД БЕЗ ПОВЕРНЕННЯ
-                    // Пишемо в Storage тільки перед самим стрибком
+                    // Записуємо в пам'ять і робимо редірект
                     Lampa.Storage.set('location_server', selected_target);
                     var finalUrl = (selected_target.indexOf('://') === -1 ? 'http://' : '') + selected_target;
-                    window.location.replace(finalUrl + (finalUrl.indexOf('?') > -1 ? '&' : '?') + 'redirect=1');
+                    window.location.href = finalUrl + (finalUrl.indexOf('?') > -1 ? '&' : '?') + 'redirect=1';
                 } else {
                     Lampa.Noty.show('Виберіть сервер зі списку');
                 }
