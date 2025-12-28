@@ -13,17 +13,17 @@ var server_states = {};
 
 function getFriendlyName(url) {
     if (!url) return 'Lampa';
-    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
+    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
     var found = servers.find(function(s) { 
-        var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
-        return host === sUrl;
+        var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
+        return host === sUrl || host.indexOf(sUrl) !== -1;
     });
     return found ? found.name : 'Lampa - (' + host + ')';
 }
 
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
-    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
+    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
     if (host === window.location.hostname.toLowerCase()) return callback(true);
 
     var domain = url.split('?')[0].replace(/\/$/, "");
@@ -33,7 +33,7 @@ function checkOnline(url, callback) {
     var timer = setTimeout(function() {
         controller.abort();
         callback(false);
-    }, 4000);
+    }, 3500);
 
     fetch(testUrl, { mode: 'no-cors', cache: 'no-cache' }).then(function() {
         clearTimeout(timer);
@@ -45,18 +45,20 @@ function checkOnline(url, callback) {
 }
 
 function startMe() { 
-    var current_host = window.location.hostname.toLowerCase().replace(/\/$/, "");
+    var current_host = window.location.hostname.toLowerCase();
     var current_friendly = getFriendlyName(current_host);
     var savedServer = Lampa.Storage.get('location_server', '-');
 
-    // СТРОГА ПЕРЕВІРКА НА ЗАЦИКЛЕННЯ
-    if (savedServer !== '-' && savedServer !== '') {
-        var cleanSaved = savedServer.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
-        if (current_host !== cleanSaved) {
-            if (window.location.search.indexOf('redirect=1') === -1) {
-                window.location.href = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer + (savedServer.indexOf('?') > -1 ? '&' : '?') + 'redirect=1'; 
-                return;
-            }
+    // РОБОТА З РЕДІРЕКТОМ ТА ЗАПОБІГАННЯ ПЕТЛІ
+    if (window.location.search.indexOf('redirect=1') !== -1) {
+        // Якщо ми вже прийшли по редіректу, очищуємо чергу переходу
+        Lampa.Storage.set('location_server', '-');
+    } else if (savedServer !== '-' && savedServer !== '') {
+        var cleanSaved = savedServer.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
+        // Переходимо тільки якщо хост реально інший
+        if (current_host !== cleanSaved && current_host.indexOf(cleanSaved) === -1) {
+            window.location.href = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer + (savedServer.indexOf('?') > -1 ? '&' : '?') + 'redirect=1'; 
+            return;
         }
     }
 
@@ -119,12 +121,10 @@ function startMe() {
                         var color = isOk ? '#2ecc71' : '#ff4c4c';
                         var isSelected = Lampa.Storage.get('location_server') === srv.url;
                         
-                        if(!isOk) item.css('opacity','0.4');
-                        else item.css('opacity','1');
-
+                        item.css('opacity', isOk ? '1' : '0.4');
                         item.find('.settings-param__name').html((isSelected ? '✓ ' : '') + srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
                     });
-                }, index * 400);
+                }, index * 300);
             }
         });
     });
