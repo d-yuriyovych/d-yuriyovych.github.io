@@ -9,6 +9,8 @@ var servers = [
     { name: 'Prisma', url: 'prisma.ws/' }
 ];
 
+var check_cache = {}; // Кеш для статусів, щоб не перевіряти двічі
+
 function getFriendlyName(url) {
     if (!url) return 'Lampa';
     var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
@@ -22,18 +24,21 @@ function getFriendlyName(url) {
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
     var domain = url.split('?')[0].replace(/\/$/, "");
-    var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
+    if (check_cache[domain] !== undefined) return callback(check_cache[domain]);
 
+    var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
     var controller = new AbortController();
     var timeoutId = setTimeout(function() { controller.abort(); }, 3000);
 
     fetch(testUrl, { mode: 'no-cors', signal: controller.signal })
         .then(function() {
             clearTimeout(timeoutId);
+            check_cache[domain] = true;
             callback(true);
         })
         .catch(function() {
             clearTimeout(timeoutId);
+            check_cache[domain] = false;
             callback(false);
         });
 }
@@ -58,21 +63,10 @@ function startMe() {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
                 item.find('.settings-param__name').html(
                     '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
-                    '<div>' +
-                    '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_friendly + '</span>' +
-                    ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>' +
-                    '</div>'
+                    '<div><span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_friendly + '</span>' +
+                    ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span></div>'
                 );
             });
-        }
-    });
-
-    Lampa.SettingsApi.addParam({
-        component: 'location_redirect',
-        param: { name: 'title_header', type: 'static' },
-        field: { name: 'Виберіть сервер Lampa:' },
-        onRender: function(item) {
-            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'padding-top': '15px'});
         }
     });
 
@@ -92,17 +86,11 @@ function startMe() {
 
                 item.on('hover:enter click', function() {
                     Lampa.Storage.set('location_server', srv.url);
-                    
-                    // Оновлюємо галочки вручну без Lampa.Settings.update(), щоб не було повторних перевірок
-                    $('.settings-param[data-component="location_redirect"]').each(function() {
-                        var name = $(this).find('.settings-param__name');
-                        if (name.length) {
-                            var text = name.html().replace('✓ ', '');
-                            name.html(text);
-                        }
+                    // Оновлюємо візуально без перемальовування через API
+                    item.parent().find('.settings-param__name').each(function() {
+                        $(this).html($(this).html().replace('✓ ', ''));
                     });
                     item.find('.settings-param__name').prepend('✓ ');
-                    
                     Lampa.Noty.show('Вибрано: ' + srv.name);
                 });
             }
@@ -120,14 +108,15 @@ function startMe() {
                 if (target && target !== '-') {
                     var clean_url = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // ПРИМУСОВА ЗМІНА НАЛАШТУВАНЬ ДОДАТКА
+                    // ПРИМУСОВЕ НАЛАШТУВАННЯ ДЛЯ ANDROID
                     Lampa.Storage.set('server_url', clean_url);
-                    Lampa.Storage.set('protocol_server', 'http'); // Вказуємо явно для Android
+                    Lampa.Storage.set('protocol_server', 'http');
+                    Lampa.Storage.set('proxy_other', false); // Вимикаємо проксі, щоб не блокував прямий редирект
                     
                     Lampa.Storage.set('location_server', '-');
                     
-                    // Прямий редирект
-                    window.location.href = 'http://' + clean_url + '?redirect=1';
+                    // Використовуємо replace для очищення історії, щоб не було петлі при кнопці "Назад"
+                    window.location.replace('http://' + clean_url + '?redirect=1');
                 } else {
                     Lampa.Noty.show('Сервер не вибрано');
                 }
