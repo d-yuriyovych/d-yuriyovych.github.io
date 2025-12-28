@@ -15,7 +15,7 @@ function checkOnline(url, callback) {
     img.onload = function() { callback(true); };
     img.onerror = function() { callback(true); }; 
     img.src = testUrl + '/favicon.ico?v=' + Math.random();
-    setTimeout(function() { if(!img.complete) { img.src = ''; callback(false); } }, 2500);
+    setTimeout(function() { if(!img.complete) { img.src = ''; callback(false); } }, 2000);
 }
 
 function startMe() { 
@@ -51,25 +51,23 @@ function startMe() {
         onRender: function(item) {
             var $valField = item.find('.settings-param__value');
 
-            // 1. Статус у головному полі (скрін 1)
-            var updateMainStatus = function() {
+            var updateAll = function() {
+                // 1. Оновлення статусу в головному рядку (Скрін 1)
                 var current_val = Lampa.Storage.get('location_server') || '-';
-                checkOnline((current_val === '-') ? current_host : current_val, function(isOk) {
+                var hostToTest = (current_val === '-') ? current_host : current_val;
+                
+                checkOnline(hostToTest, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
                     var status = isOk ? ' - доступний' : ' - недоступний';
                     $valField.html('<span style="color:' + color + '">' + servers[current_val] + status + '</span>');
                 });
-            };
-            updateMainStatus();
 
-            // 2. Статуси у вікні вибору (скрін 2)
-            var observer = new MutationObserver(function() {
+                // 2. Оновлення статусів у списку "Вибрати" (Скрін 2)
                 $('.selector__item').each(function() {
                     var $el = $(this);
-                    var text = $el.text().trim();
+                    var text = $el.text().split(' -')[0].trim();
                     Object.keys(servers).forEach(function(sKey) {
-                        if (text === servers[sKey] && !$el.data('checked')) {
-                            $el.data('checked', true);
+                        if (text === servers[sKey]) {
                             checkOnline((sKey === '-') ? current_host : sKey, function(isOk) {
                                 var color = isOk ? '#2ecc71' : '#ff4c4c';
                                 var status = isOk ? ' - доступний' : ' - недоступний';
@@ -78,8 +76,15 @@ function startMe() {
                         }
                     });
                 });
-            });
+            };
+
+            // Запускаємо перевірку відразу при рендері
+            setTimeout(updateAll, 100);
+
+            // Використовуємо MutationObserver для відлову відкриття модального вікна
+            var observer = new MutationObserver(updateAll);
             observer.observe(document.body, { childList: true, subtree: true });
+            
             item.on('destroy', function() { observer.disconnect(); });
         }
     }); 
