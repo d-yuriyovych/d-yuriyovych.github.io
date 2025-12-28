@@ -92,7 +92,17 @@ function startMe() {
 
                 item.on('hover:enter click', function() {
                     Lampa.Storage.set('location_server', srv.url);
-                    Lampa.Settings.update(); // Для оновлення галочок
+                    
+                    // Оновлюємо галочки вручну без Lampa.Settings.update(), щоб не було повторних перевірок
+                    $('.settings-param[data-component="location_redirect"]').each(function() {
+                        var name = $(this).find('.settings-param__name');
+                        if (name.length) {
+                            var text = name.html().replace('✓ ', '');
+                            name.html(text);
+                        }
+                    });
+                    item.find('.settings-param__name').prepend('✓ ');
+                    
                     Lampa.Noty.show('Вибрано: ' + srv.name);
                 });
             }
@@ -110,13 +120,13 @@ function startMe() {
                 if (target && target !== '-') {
                     var clean_url = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // Оновлюємо внутрішню адресу додатка
+                    // ПРИМУСОВА ЗМІНА НАЛАШТУВАНЬ ДОДАТКА
                     Lampa.Storage.set('server_url', clean_url);
+                    Lampa.Storage.set('protocol_server', 'http'); // Вказуємо явно для Android
                     
-                    // Скидаємо буфер
                     Lampa.Storage.set('location_server', '-');
                     
-                    // Редирект без повторних перевірок
+                    // Прямий редирект
                     window.location.href = 'http://' + clean_url + '?redirect=1';
                 } else {
                     Lampa.Noty.show('Сервер не вибрано');
