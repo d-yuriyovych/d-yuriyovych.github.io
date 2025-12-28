@@ -37,13 +37,12 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // 1. ПОТОЧНИЙ СЕРВЕР (БЕЗ ФОКУСУ)
+    // 1. ПОТОЧНИЙ СЕРВЕР (БЕЗ ФОКУСУ, КОЛІР ЯК У ЗАГОЛОВКА)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
         field: { name: 'Поточний сервер:' },
         onRender: function(item) {
-            // Примусово забираємо можливість фокусу
             item.removeClass('selector selector-item').css({
                 'pointer-events': 'none',
                 'user-select': 'none'
@@ -55,8 +54,9 @@ function startMe() {
                 var isSelected = (Lampa.Storage.get('location_server') === '-' || !Lampa.Storage.get('location_server'));
                 var mark = isSelected ? '<span style="color:#2ecc71">✓ </span>' : '';
                 
+                // Додано opacity: 0.6 для головного надпису, щоб колір був як у заголовка
                 item.find('.settings-param__name').html(
-                    'Поточний сервер:<br><br>' + 
+                    '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
                     '<div>' +
                     mark + '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_friendly + '</span>' +
                     ' — <span style="color:' + color + '">' + status + '</span>' +
@@ -80,7 +80,7 @@ function startMe() {
         }
     });
 
-    // 3. СПИСОК СЕРВЕРІВ (КЛІКАБЕЛЬНІ)
+    // 3. СПИСОК СЕРВЕРІВ (КЛІКАБЕЛЬНІ ПУЛЬТОМ)
     var servers = [
         { name: 'Lampac Koyeb', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
         { name: 'lampa.mx', url: 'lampa.mx' }
@@ -92,10 +92,7 @@ function startMe() {
             param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'static' },
             field: { name: srv.name },
             onRender: function(item) {
-                // Додаємо класи для фокусу Смарт-ТВ
                 item.addClass('selector selector-item').css('cursor', 'pointer');
-                
-                // Обробка натискання "ОК"
                 item.on('hover:enter click', function() {
                     Lampa.Storage.set('location_server', srv.url);
                     Lampa.Settings.update();
