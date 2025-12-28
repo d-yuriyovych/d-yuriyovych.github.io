@@ -9,32 +9,34 @@ var servers = [
     { name: 'Prisma', url: 'prisma.ws/' }
 ];
 
-var server_states = {};
+var states_cache = {}; 
 
 function getFriendlyName(url) {
     if (!url) return 'Lampa';
     var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
     var found = servers.find(function(s) { 
         var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
-        return host === sUrl || host.indexOf(sUrl) !== -1 || sUrl.indexOf(host) !== -1;
+        return host === sUrl || host.indexOf(sUrl) !== -1;
     });
     return found ? found.name : host;
 }
 
 function checkOnline(url, callback) {
-    if (!url || url === '-') return callback(true);
-    var domain = url.split('?')[0].replace(/\/$/, "");
-    if (server_states[domain] !== undefined) return callback(server_states[domain]);
+    var domain = url.replace(/https?:\/\//, "").split('/')[0].replace(/\/$/, "");
+    if (states_cache[domain] !== undefined) return callback(states_cache[domain]);
 
-    var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() { controller.abort(); }, 2000); // Таймаут 2 сек
 
-    fetch(testUrl, { mode: 'no-cors' })
+    fetch('http://' + domain, { mode: 'no-cors', signal: controller.signal })
         .then(function() {
-            server_states[domain] = true;
+            clearTimeout(timeoutId);
+            states_cache[domain] = true;
             callback(true);
         })
         .catch(function() {
-            server_states[domain] = false;
+            clearTimeout(timeoutId);
+            states_cache[domain] = false;
             callback(false);
         });
 }
@@ -73,8 +75,7 @@ function startMe() {
         param: { name: 'title_header', type: 'static' },
         field: { name: 'Виберіть сервер Lampa:' },
         onRender: function(item) {
-            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'padding-top': '15px'});
-            item.find('.settings-param__name').css('opacity', '0.6');
+            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'padding-top': '15px', 'opacity': '0.6'});
         }
     });
 
@@ -84,18 +85,16 @@ function startMe() {
             param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'static' },
             field: { name: srv.name },
             onRender: function(item) {
-                item.addClass('selector selector-item').css('cursor', 'pointer');
-                
+                item.addClass('selector selector-item');
                 checkOnline(srv.url, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
-                    item.find('.settings-param__name').html(srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
+                    item.find('.settings-param__name').html(srv.name + ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
                 });
 
                 item.on('hover:enter click', function() {
                     Lampa.Storage.set('location_server', srv.url);
                     item.parent().find('.settings-param__name').each(function() {
-                        var html = $(this).html().replace('✓ ', '');
-                        $(this).html(html);
+                        $(this).html($(this).html().replace('✓ ', ''));
                     });
                     item.find('.settings-param__name').prepend('✓ ');
                     Lampa.Noty.show('Вибрано: ' + srv.name);
@@ -109,22 +108,27 @@ function startMe() {
         param: { name: 'apply_reload', type: 'static' },
         field: { name: 'Змінити сервер' },
         onRender: function(item) {
-            item.addClass('selector selector-item').css({'cursor': 'pointer', 'margin-top': '15px'});
-            item.on('hover:enter click', function() {
+            item.addClass('selector selector-item').on('hover:enter click', function() {
                 var target = Lampa.Storage.get('location_server');
                 if (target && target !== '-') {
-                    var clean_url = target.replace(/https?:\/\//, "").replace(/\/$/, "");
+                    var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // Крок 1: Оновлюємо внутрішню адресу додатка (API)
-                    Lampa.Storage.set('server_url', clean_url);
-                    
-                    // Крок 2: Очищуємо тимчасову змінну
+                    // Зберігаємо адресу у внутрішній пам'яті додатка
+                    Lampa.Storage.set('server_url', clean);
                     Lampa.Storage.set('location_server', '-');
                     
-                    // Крок 3: Виконуємо перехід
-                    window.location.replace('http://' + clean_url + '?redirect=1');
-                } else {
-                    Lampa.Noty.show('Сервер не вибрано');
+                    Lampa.Noty.show('Перехід на ' + clean);
+                    
+                    // Спроба жорсткого перезапуску через 500мс
+                    setTimeout(function(){
+                        if(Lampa.Platform.is('android')) {
+                            window.location.replace('http://' + clean);
+                            // Якщо replace не спрацював, іноді допомагає вихід (додаток перезапуститься сам)
+                            if(typeof Lampa.Platform.exit == 'function') Lampa.Platform.exit();
+                        } else {
+                            window.location.href = 'http://' + clean;
+                        }
+                    }, 500);
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
@@ -133,5 +137,5 @@ function startMe() {
 } 
 
 if(window.appready) startMe(); 
-else { Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); }); } 
+else Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); });
 })();
