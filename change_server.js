@@ -51,6 +51,13 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
+    // Очищуємо кеш при кожному відкритті компонента, щоб статуси перевірялися заново
+    Lampa.Listener.follow('settings', function(e) {
+        if(e.type == 'open' && e.name == 'location_redirect') {
+            states_cache = {};
+        }
+    });
+
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
@@ -89,25 +96,20 @@ function startMe() {
                 checkOnline(srv.url, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
                     item.find('.settings-param__name').html(srv.name + ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
-                    
-                    if (!isOk) {
-                        item.css('opacity', '0.4');
-                    }
+                    if (!isOk) item.css('opacity', '0.4');
                 });
 
                 item.on('hover:enter click', function() {
                     var domain = srv.url.replace(/https?:\/\//, "").split('/')[0].replace(/\/$/, "");
                     if (states_cache[domain] === false) {
-                        Lampa.Noty.show('Сервер ' + srv.name + ' недоступний. Виберіть інший.');
+                        Lampa.Noty.show('Сервер недоступний');
                         return;
                     }
-
                     Lampa.Storage.set('location_server', srv.url);
                     item.parent().find('.settings-param__name').each(function() {
                         $(this).html($(this).html().replace('✓ ', ''));
                     });
                     item.find('.settings-param__name').prepend('✓ ');
-                    Lampa.Noty.show('Вибрано: ' + srv.name);
                 });
             }
         });
@@ -123,15 +125,24 @@ function startMe() {
                 if (target && target !== '-') {
                     var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // Оновлення адреси в пам'яті Android додатку
+                    // Запис в Storage
                     Lampa.Storage.set('server_url', clean);
                     Lampa.Storage.set('location_server', '-');
+
+                    // ПРИМУСОВИЙ РЕДИРЕКТ ЧЕРЕЗ СИСТЕМНУ ФУНКЦІЮ
+                    if(window.lampa_settings && window.lampa_settings.set) {
+                        window.lampa_settings.set('server_url', clean);
+                    }
+
+                    Lampa.Noty.show('Перезавантаження...');
                     
-                    // Використовуємо прямий редирект, який Android WebView має підхопити
-                    // після зміни server_url у Storage
-                    window.location.replace('http://' + clean + '?redirect=1');
+                    setTimeout(function(){
+                        window.location.href = 'http://' + clean + '?redirect=1';
+                        // Додатковий метод для Android-додатку
+                        if(Lampa.Platform.is('android')) window.location.replace('http://' + clean);
+                    }, 300);
                 } else {
-                    Lampa.Noty.show('Спочатку виберіть доступний сервер');
+                    Lampa.Noty.show('Виберіть доступний сервер');
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
