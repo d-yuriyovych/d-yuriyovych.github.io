@@ -119,23 +119,26 @@ function startMe() {
                 if (target && target !== '-') {
                     var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // Зберігаємо в Storage
+                    // КРОК 1: Записуємо адресу
                     Lampa.Storage.set('server_url', clean);
-                    Lampa.Storage.set('location_server', '-');
+                    localStorage.setItem('server_url', clean);
                     
-                    Lampa.Noty.show('Зміна сервера...');
-                    
+                    Lampa.Noty.show('Виконується перехід...');
+
                     setTimeout(function(){
-                        // Пряма спроба переходу
+                        // КРОК 2: Замість перезавантаження всього додатка, 
+                        // ми використовуємо "ядро" Lampa для переходу на іншу адресу
+                        // без закриття WebView
                         var final_url = 'http://' + clean;
-                        window.location.assign(final_url);
                         
-                        // Якщо через 400мс не перейшло — примусовий перезапуск
-                        setTimeout(function(){
-                            if(Lampa.Platform.exit) Lampa.Platform.exit();
-                            else window.location.href = final_url;
-                        }, 400);
-                    }, 300);
+                        try {
+                            // Спроба через системний запуск (якщо додаток дозволить)
+                            Lampa.Platform.run(final_url);
+                        } catch(e) {
+                            // Якщо не вийшло - чистий редирект без index.html (це важливо!)
+                            window.location.href = final_url;
+                        }
+                    }, 500);
                 } else {
                     Lampa.Noty.show('Виберіть сервер ще раз');
                 }
