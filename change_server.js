@@ -11,6 +11,8 @@ function checkOnline(url, callback) {
     if (url === '-' || url === '') return callback(true);
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
+    
+    // Використовуємо Image як максимально швидкий метод без CORS обмежень
     var img = new Image();
     img.onload = function() { callback(true); };
     img.onerror = function() { callback(true); }; 
@@ -50,40 +52,44 @@ function startMe() {
         onChange: function () { startMe(); },
         onRender: function(item) {
             
-            // Функція, яка фарбує і додає статус
-            var applyStatus = function($el, sKey) {
-                if ($el.data('applied')) return;
-                var domain = (sKey === '-') ? current_host : sKey;
+            // Функція примусового оновлення тексту
+            var updateElement = function($el, serverKey) {
+                var domain = (serverKey === '-') ? current_host : serverKey;
                 checkOnline(domain, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
-                    var status = isOk ? ' - доступний' : ' - недоступний';
-                    $el.html('<span style="color:' + color + '">' + servers[sKey] + status + '</span>');
-                    $el.data('applied', true);
+                    var statusText = isOk ? ' - доступний' : ' - недоступний';
+                    var originalName = servers[serverKey];
+                    
+                    // Використовуємо .contents() щоб не затерти іконку "галочку" в селекторі
+                    $el.html('<span style="color:' + color + '">' + originalName + statusText + '</span>');
                 });
             };
 
-            // Кожні 500мс перевіряємо, чи з'явилися нові елементи в інтерфейсі
-            var timer = setInterval(function() {
-                // 1. Шукаємо головний рядок (Скрін 1)
+            // 1. Оновлюємо головне меню (Скрін 1) - запускаємо циклічно, поки ми в налаштуваннях
+            var mainInterval = setInterval(function() {
                 var $valField = item.find('.settings-param__value');
-                if ($valField.length) {
-                    var current_val = Lampa.Storage.get('location_server') || '-';
-                    applyStatus($valField, current_val);
+                if($valField.length) {
+                    var cur = Lampa.Storage.get('location_server') || '-';
+                    // Оновлюємо тільки якщо ще не додано статус
+                    if($valField.text().indexOf('доступний') === -1) {
+                        updateElement($valField, cur);
+                    }
                 }
 
-                // 2. Шукаємо пункти в меню "Вибрати" (Скрін 2)
+                // 2. Оновлюємо меню вибору (Скрін 2) - шукаємо активне модальне вікно
                 $('.selector__item').each(function() {
                     var $this = $(this);
-                    var text = $this.text().split(' -')[0].trim();
+                    var rawText = $this.text().trim();
+                    
                     Object.keys(servers).forEach(function(key) {
-                        if (text === servers[key]) {
-                            applyStatus($this, key);
+                        if (rawText === servers[key]) {
+                            updateElement($this, key);
                         }
                     });
                 });
-            }, 500);
+            }, 300); // 0.3 сек для миттєвої реакції
 
-            item.on('destroy', function() { clearInterval(timer); });
+            item.on('destroy', function() { clearInterval(mainInterval); });
         }
     }); 
 } 
