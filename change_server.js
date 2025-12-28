@@ -30,8 +30,7 @@ function checkOnline(url, callback) {
 function startMe() { 
     var current_host = window.location.hostname.toLowerCase();
     
-    // ПОВНА ЗАБОРОНА АВТОМАТИЧНИХ ПЕРЕХОДІВ
-    // Ми очищуємо чергу відразу при завантаженні, щоб не було циклів
+    // Очищуємо всі черги переходу, щоб Android не робив відкатів
     Lampa.Storage.set('location_server', '-');
 
     Lampa.SettingsApi.addComponent({ 
@@ -40,7 +39,7 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // Поточний сервер
+    // Поточний сервер (Стилі як раніше)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
@@ -62,7 +61,17 @@ function startMe() {
         }
     });
 
-    // Список серверів
+    Lampa.SettingsApi.addParam({
+        component: 'location_redirect',
+        param: { name: 'title_header', type: 'static' },
+        field: { name: 'Виберіть сервер Lampa:' },
+        onRender: function(item) {
+            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'padding-top': '15px'});
+            item.find('.settings-param__name').css('opacity', '0.6');
+        }
+    });
+
+    // Список вибору
     servers.forEach(function(srv, index) {
         Lampa.SettingsApi.addParam({
             component: 'location_redirect',
@@ -73,9 +82,6 @@ function startMe() {
                 
                 item.on('hover:enter click', function() {
                     if (server_states[srv.url]) {
-                        // Тільки ставимо мітку, нікуди не переходимо автоматично
-                        for(var i=0; i<servers.length; i++) server_states["sel_" + servers[i].url] = false;
-                        server_states["sel_" + srv.url] = true;
                         Lampa.Storage.set('location_server_tmp', srv.url); 
                         Lampa.Noty.show('Вибрано: ' + srv.name);
                     }
@@ -85,8 +91,9 @@ function startMe() {
                     checkOnline(srv.url, function(isOk) {
                         server_states[srv.url] = isOk;
                         var color = isOk ? '#2ecc71' : '#ff4c4c';
+                        var isSelected = Lampa.Storage.get('location_server_tmp') === srv.url;
                         item.css('opacity', isOk ? '1' : '0.4');
-                        item.find('.settings-param__name').html(srv.name + ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
+                        item.find('.settings-param__name').html((isSelected ? '✓ ' : '') + srv.name + ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
                     });
                 }, index * 400);
             }
@@ -104,8 +111,8 @@ function startMe() {
                 var target = Lampa.Storage.get('location_server_tmp', '-');
                 if (target !== '-' && server_states[target]) {
                     Lampa.Storage.set('location_server_tmp', '-');
-                    var protocol = window.location.protocol + '//';
-                    window.location.replace(protocol + target);
+                    // Використовуємо прямий перехід без параметрів, щоб Android не "лякався"
+                    window.location.href = window.location.protocol + '//' + target;
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
