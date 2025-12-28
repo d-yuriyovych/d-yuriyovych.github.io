@@ -37,24 +37,25 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // 1. ПОТОЧНИЙ СЕРВЕР (ЖОВТА НАЗВА)
+    // 1. ПОТОЧНИЙ СЕРВЕР (НЕКЛІКАБЕЛЬНИЙ, НОВИЙ СТИЛЬ)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
-        field: { name: 'Поточний' },
+        field: { name: 'Поточний сервер:' },
         onRender: function(item) {
-            item.addClass('selector-item selector').css('cursor', 'pointer');
-            item.on('hover:enter click', function() {
-                Lampa.Storage.set('location_server', '-');
-                Lampa.Settings.update();
-                Lampa.Noty.show('Вибрано поточний сервер');
-            });
+            // НЕ додаємо класи selector/selector-item, щоб не було фокусу та кліку
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
-                var status = isOk ? ' - доступний' : ' - недоступний';
+                var status = isOk ? 'доступний' : 'недоступний';
                 var isSelected = (Lampa.Storage.get('location_server') === '-' || !Lampa.Storage.get('location_server'));
                 var mark = isSelected ? '<span style="color:#2ecc71">✓ </span>' : '';
-                item.find('.settings-param__name').html(mark + 'Поточний : <span style="color:yellow">' + current_friendly + '</span><span style="color:' + color + '">' + status + '</span>');
+                
+                // Форматування: Поточний сервер: <br> Назва (жовта) - Статус
+                item.find('.settings-param__name').html(
+                    'Поточний сервер:<br>' + 
+                    mark + '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_friendly + '</span>' +
+                    ' — <span style="color:' + color + '">' + status + '</span>'
+                );
             });
         }
     });
@@ -66,7 +67,7 @@ function startMe() {
         field: { name: 'Виберіть сервер Lampa:' }
     });
 
-    // 3. СПИСОК СЕРВЕРІВ
+    // 3. СПИСОК СЕРВЕРІВ (КЛІКАБЕЛЬНІ)
     var servers = [
         { name: 'Lampac Koyeb', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
         { name: 'lampa.mx', url: 'lampa.mx' }
@@ -94,7 +95,7 @@ function startMe() {
         });
     });
 
-    // 4. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ (СИНЯ)
+    // 4. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ (СИНЯ, КЛІКАБЕЛЬНА)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'apply_reload', type: 'static' },
@@ -106,7 +107,7 @@ function startMe() {
                 if (target && target !== '-') {
                     window.location.href = 'http://' + target + '?redirect=1';
                 } else {
-                    Lampa.Noty.show('Ви вже на цьому сервері');
+                    Lampa.Noty.show('Сервер не змінено');
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
