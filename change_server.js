@@ -89,9 +89,19 @@ function startMe() {
                 checkOnline(srv.url, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
                     item.find('.settings-param__name').html(srv.name + ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
+                    
+                    if (!isOk) {
+                        item.css('opacity', '0.4');
+                    }
                 });
 
                 item.on('hover:enter click', function() {
+                    var domain = srv.url.replace(/https?:\/\//, "").split('/')[0].replace(/\/$/, "");
+                    if (states_cache[domain] === false) {
+                        Lampa.Noty.show('Сервер ' + srv.name + ' недоступний. Виберіть інший.');
+                        return;
+                    }
+
                     Lampa.Storage.set('location_server', srv.url);
                     item.parent().find('.settings-param__name').each(function() {
                         $(this).html($(this).html().replace('✓ ', ''));
@@ -113,19 +123,15 @@ function startMe() {
                 if (target && target !== '-') {
                     var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // Крок 1: Оновлюємо внутрішній конфиг
+                    // Оновлення адреси в пам'яті Android додатку
                     Lampa.Storage.set('server_url', clean);
                     Lampa.Storage.set('location_server', '-');
                     
-                    // Крок 2: Примусовий запуск через Platform API
-                    // Це "вбиває" поточну сесію та запускає нову адресу
-                    if (Lampa.Platform.is('android')) {
-                        Lampa.Platform.run({
-                            url: 'http://' + clean
-                        });
-                    } else {
-                        window.location.replace('http://' + clean + '?redirect=1');
-                    }
+                    // Використовуємо прямий редирект, який Android WebView має підхопити
+                    // після зміни server_url у Storage
+                    window.location.replace('http://' + clean + '?redirect=1');
+                } else {
+                    Lampa.Noty.show('Спочатку виберіть доступний сервер');
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
