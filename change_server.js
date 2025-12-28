@@ -13,16 +13,15 @@ function checkOnline(url, callback) {
     var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
     var img = new Image();
     img.onload = function() { callback(true); };
-    img.onerror = function() { callback(true); }; // Будь-яка відповідь = онлайн
+    img.onerror = function() { callback(true); }; 
     img.src = testUrl + '/favicon.ico?v=' + Math.random();
-    setTimeout(function() { if(!img.complete) { img.src = ''; callback(false); } }, 3000);
+    setTimeout(function() { if(!img.complete) { img.src = ''; callback(false); } }, 2500);
 }
 
 function startMe() { 
     var current_host = window.location.hostname;
     var current_friendly = getFriendlyName(current_host);
 
-    // Редирект
     if (window.location.search != '?redirect=1') { 
         if(current_host != Lampa.Storage.get('location_server')) { 
             if (Lampa.Storage.get('location_server') != '-' && Lampa.Storage.get('location_server') != '') 
@@ -32,7 +31,6 @@ function startMe() {
         Lampa.Storage.set('location_server','-');
     } 
 
-    // Головний пункт у налаштуваннях
     Lampa.SettingsApi.addComponent({ 
         component: 'location_redirect', 
         name: 'Зміна сервера', 
@@ -45,13 +43,6 @@ function startMe() {
         'lampa.mx': 'lampa.mx' 
     }; 
 
-    // Додаємо заголовок всередині плагіна
-    Lampa.SettingsApi.addParam({
-        component: 'location_redirect',
-        param: { name: 'location_info', type: 'static' },
-        field: { name: 'Поточний : ' + current_friendly }
-    });
-
     Lampa.SettingsApi.addParam({ 
         component: 'location_redirect', 
         param: { name: 'location_server', type: 'select', values: servers, default: '-' }, 
@@ -60,22 +51,25 @@ function startMe() {
         onRender: function(item) {
             var $valField = item.find('.settings-param__value');
 
-            // 1. Оновлення статусу основного поля
-            var current_val = Lampa.Storage.get('location_server') || '-';
-            checkOnline((current_val === '-') ? current_host : current_val, function(isOk) {
-                var color = isOk ? '#2ecc71' : '#ff4c4c';
-                var status = isOk ? ' - доступний' : ' - недоступний';
-                $valField.html('<span style="color:' + color + '">' + servers[current_val] + status + '</span>');
-            });
+            // 1. Статус у головному полі (скрін 1)
+            var updateMainStatus = function() {
+                var current_val = Lampa.Storage.get('location_server') || '-';
+                checkOnline((current_val === '-') ? current_host : current_val, function(isOk) {
+                    var color = isOk ? '#2ecc71' : '#ff4c4c';
+                    var status = isOk ? ' - доступний' : ' - недоступний';
+                    $valField.html('<span style="color:' + color + '">' + servers[current_val] + status + '</span>');
+                });
+            };
+            updateMainStatus();
 
-            // 2. Слідкуємо за відкриттям списку
+            // 2. Статуси у вікні вибору (скрін 2)
             var observer = new MutationObserver(function() {
                 $('.selector__item').each(function() {
                     var $el = $(this);
                     var text = $el.text().trim();
                     Object.keys(servers).forEach(function(sKey) {
                         if (text === servers[sKey] && !$el.data('checked')) {
-                            $el.data('checked', true); // Щоб не було циклу
+                            $el.data('checked', true);
                             checkOnline((sKey === '-') ? current_host : sKey, function(isOk) {
                                 var color = isOk ? '#2ecc71' : '#ff4c4c';
                                 var status = isOk ? ' - доступний' : ' - недоступний';
