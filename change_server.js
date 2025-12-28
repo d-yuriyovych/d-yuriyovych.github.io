@@ -28,7 +28,7 @@ function checkOnline(url, callback) {
     var controller = new AbortController();
     var timeoutId = setTimeout(function() { controller.abort(); }, 2000); 
 
-    fetch('http://' + domain, { mode: 'no-cors', signal: controller.signal })
+    fetch('http://' + domain + '/?t=' + Date.now(), { mode: 'no-cors', signal: controller.signal })
         .then(function() {
             clearTimeout(timeoutId);
             states_cache[domain] = true;
@@ -42,6 +42,9 @@ function checkOnline(url, callback) {
 }
 
 function startMe() { 
+    // Кожного разу при виклику startMe (відкритті компонента) очищуємо кеш статусів
+    states_cache = {};
+    
     var current_host = window.location.hostname;
     var current_friendly = getFriendlyName(current_host);
 
@@ -50,13 +53,6 @@ function startMe() {
         name: 'Зміна сервера', 
         icon: icon_server_redirect 
     }); 
-
-    // Очищуємо кеш при кожному відкритті компонента, щоб статуси перевірялися заново
-    Lampa.Listener.follow('settings', function(e) {
-        if(e.type == 'open' && e.name == 'location_redirect') {
-            states_cache = {};
-        }
-    });
 
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
@@ -125,21 +121,24 @@ function startMe() {
                 if (target && target !== '-') {
                     var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // Запис в Storage
+                    // 1. Записуємо в усі можливі змінні сховища
                     Lampa.Storage.set('server_url', clean);
                     Lampa.Storage.set('location_server', '-');
-
-                    // ПРИМУСОВИЙ РЕДИРЕКТ ЧЕРЕЗ СИСТЕМНУ ФУНКЦІЮ
-                    if(window.lampa_settings && window.lampa_settings.set) {
-                        window.lampa_settings.set('server_url', clean);
-                    }
-
-                    Lampa.Noty.show('Перезавантаження...');
                     
+                    // 2. Викликаємо внутрішній метод синхронізації, якщо він є
+                    if (Lampa.Settings && Lampa.Settings.update) Lampa.Settings.update();
+
+                    Lampa.Noty.show('Перехід на ' + clean);
+                    
+                    // 3. Пряма маніпуляція з об'єктом location для обходу блокування WebView
                     setTimeout(function(){
-                        window.location.href = 'http://' + clean + '?redirect=1';
-                        // Додатковий метод для Android-додатку
-                        if(Lampa.Platform.is('android')) window.location.replace('http://' + clean);
+                        var new_url = 'http://' + clean + '/?redirect=' + Date.now();
+                        window.location.replace(new_url);
+                        
+                        // Якщо через 500мс ми все ще тут - пробуємо через href
+                        setTimeout(function(){
+                            window.location.href = new_url;
+                        }, 500);
                     }, 300);
                 } else {
                     Lampa.Noty.show('Виберіть доступний сервер');
@@ -150,6 +149,11 @@ function startMe() {
     });
 } 
 
-if(window.appready) startMe(); 
-else Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); });
+// Запуск при кожному відкритті налаштувань
+Lampa.Listener.follow('app', function(e) { 
+    if(e.type == 'ready') startMe(); 
+});
+Lampa.Listener.follow('settings', function(e) {
+    if(e.type == 'open' && e.name == 'location_redirect') startMe();
+});
 })();
