@@ -9,24 +9,21 @@ var servers = [
     { name: 'Prisma', url: 'prisma.ws/' }
 ];
 
-var states = {}; // Глобальний кеш статусів
+var server_states = {};
 
 function checkOnline(url, callback) {
     var domain = url.replace(/https?:\/\//, "").split('/')[0].replace(/\/$/, "");
-    if (states[domain] !== undefined) return callback(states[domain]);
+    if (server_states[domain] !== undefined) return callback(server_states[domain]);
+    var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
 
-    fetch('http://' + domain, { mode: 'no-cors' }).then(function() {
-        states[domain] = true;
-        callback(true);
+    fetch(testUrl, { mode: 'no-cors' }).then(function() {
+        server_states[domain] = true; callback(true);
     }).catch(function() {
-        states[domain] = false;
-        callback(false);
+        server_states[domain] = false; callback(false);
     });
 }
 
-function startMe() { 
-    var current_host = window.location.hostname;
-
+function startMe() {
     Lampa.SettingsApi.addComponent({ 
         component: 'location_redirect', 
         name: 'Зміна сервера', 
@@ -38,10 +35,11 @@ function startMe() {
         param: { name: 'main_status', type: 'static' },
         field: { name: 'Поточний сервер:' },
         onRender: function(item) {
-            item.removeClass('selector selector-item').css('pointer-events', 'none');
-            checkOnline(current_host, function(isOk) {
+            item.removeClass('selector selector-item').css({'pointer-events': 'none'});
+            var host = window.location.hostname;
+            checkOnline(host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
-                item.find('.settings-param__name').html('Поточний сервер: <span style="color:yellow">' + current_host + '</span> <span style="color:' + color + '">(' + (isOk ? 'ОК' : 'OFF') + ')</span>');
+                item.find('.settings-param__name').html('Поточний: <span style="color:yellow">' + host + '</span> <span style="color:' + color + '">(' + (isOk ? 'ОК' : 'OFF') + ')</span>');
             });
         }
     });
@@ -51,7 +49,7 @@ function startMe() {
         param: { name: 'title_header', type: 'static' },
         field: { name: 'Виберіть сервер Lampa:' },
         onRender: function(item) {
-            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'opacity': '0.6'});
+            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'padding-top': '15px', 'opacity': '0.6'});
         }
     });
 
@@ -62,19 +60,14 @@ function startMe() {
             field: { name: srv.name },
             onRender: function(item) {
                 item.addClass('selector selector-item');
-                
                 checkOnline(srv.url, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
-                    var isSelected = Lampa.Storage.get('location_server') === srv.url;
-                    item.find('.settings-param__name').html((isSelected ? '✓ ' : '') + srv.name + ' <span style="color:' + color + '">(' + (isOk ? 'доступний' : 'немає зв\'язку') + ')</span>');
+                    item.find('.settings-param__name').html(srv.name + ' <span style="color:' + color + '">(' + (isOk ? 'доступний' : 'немає зв\'язку') + ')</span>');
                 });
 
                 item.on('hover:enter click', function() {
                     Lampa.Storage.set('location_server', srv.url);
-                    // Візуальне оновлення без перезавантаження
-                    item.parent().find('.settings-param__name').each(function() {
-                        $(this).html($(this).html().replace('✓ ', ''));
-                    });
+                    item.parent().find('.settings-param__name').each(function() { $(this).html($(this).html().replace('✓ ', '')); });
                     item.find('.settings-param__name').prepend('✓ ');
                     Lampa.Noty.show('Вибрано: ' + srv.name);
                 });
@@ -91,17 +84,25 @@ function startMe() {
                 var target = Lampa.Storage.get('location_server');
                 if (target && target !== '-') {
                     var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
-                    // КЛЮЧ до Android: міняємо внутрішню адресу додатка
+                    
+                    // Оновлення внутрішніх налаштувань
                     Lampa.Storage.set('server_url', clean);
                     Lampa.Storage.set('location_server', '-');
-                    // Виконуємо жорсткий перехід
-                    window.location.replace('http://' + clean + '?redirect=1');
+                    
+                    // ВИКЛИК API ДОДАТКА
+                    if (Lampa.Platform.is('android')) {
+                        // Якщо це Android додаток, використовуємо його системний запуск
+                        Lampa.Platform.run('http://' + clean);
+                    } else {
+                        // Для ТВ та браузера
+                        window.location.href = 'http://' + clean + '?redirect=1';
+                    }
                 }
             });
-            item.find('.settings-param__name').css('color', '#3498db');
+            item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
         }
     });
-} 
+}
 
 if(window.appready) startMe(); 
 else Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); });
