@@ -19,24 +19,18 @@ function getFriendlyName(url) {
     return found ? found.name : 'Lampa - (' + host + ')';
 }
 
+// ПРОСТИЙ ЗАПИТ НА ПІДКЛЮЧЕННЯ
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? window.location.protocol + '//' + domain : domain;
 
-    // Використовуємо fetch з mode: 'no-cors'. 
-    // Це дозволяє перевірити факт існування сервера, ігноруючи відсутність картинок чи файлів.
-    fetch(testUrl, { mode: 'no-cors', cache: 'no-cache' }).then(function() {
-        callback(true);
-    }).catch(function() {
-        // Якщо fetch зовсім не спрацював (наприклад, старий Smart TV), пробуємо Image як запасний варіант
-        var img = new Image();
-        img.onload = function() { callback(true); };
-        img.onerror = function() { callback(false); };
-        img.src = testUrl + '/favicon.ico?v=' + Math.random();
-    });
+    // Стукаємо прямо в корінь домену
+    fetch(testUrl, { mode: 'no-cors', cache: 'no-cache' })
+        .then(function() { callback(true); }) // Сервер відповів — значить живий
+        .catch(function() { callback(false); }); // Помилка підключення
 
-    setTimeout(function() { callback(false); }, 3500);
+    setTimeout(function() { callback(false); }, 4000); // Тайм-аут 4 сек
 }
 
 function startMe() { 
@@ -58,7 +52,7 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // 1. ПОТОЧНИЙ СЕРВЕР (ФАРБОВАНА РИСКА ТА НАЗВА)
+    // 1. ПОТОЧНИЙ СЕРВЕР (ЖОВТА НАЗВА + КОЛЬОРОВА РИСКА)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
