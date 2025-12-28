@@ -19,34 +19,24 @@ function getFriendlyName(url) {
     return found ? found.name : 'Lampa - (' + host + ')';
 }
 
-// Універсальна перевірка, якій байдуже на наявність картинок
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? window.location.protocol + '//' + domain : domain;
 
-    var script = document.createElement('script');
-    var timeout = setTimeout(function() {
-        cleanup();
-        callback(false);
-    }, 4000);
+    // Використовуємо fetch з mode: 'no-cors'. 
+    // Це дозволяє перевірити факт існування сервера, ігноруючи відсутність картинок чи файлів.
+    fetch(testUrl, { mode: 'no-cors', cache: 'no-cache' }).then(function() {
+        callback(true);
+    }).catch(function() {
+        // Якщо fetch зовсім не спрацював (наприклад, старий Smart TV), пробуємо Image як запасний варіант
+        var img = new Image();
+        img.onload = function() { callback(true); };
+        img.onerror = function() { callback(false); };
+        img.src = testUrl + '/favicon.ico?v=' + Math.random();
+    });
 
-    function cleanup() {
-        clearTimeout(timeout);
-        if (script.parentNode) script.parentNode.removeChild(script);
-    }
-
-    // Якщо сервер відповів будь-чим (навіть 404), це змінить стан скрипта
-    script.onload = function() { cleanup(); callback(true); };
-    script.onerror = function() { 
-        cleanup(); 
-        // На багатьох ТБ помилка CORS при завантаженні скрипта все одно означає, що сервер "пінгнувся"
-        // Але якщо це повна мережева помилка (як на вашому скріні), буде статус false
-        callback(false); 
-    };
-
-    script.src = testUrl + '/?check=' + Math.random();
-    document.head.appendChild(script);
+    setTimeout(function() { callback(false); }, 3500);
 }
 
 function startMe() { 
@@ -68,20 +58,21 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
+    // 1. ПОТОЧНИЙ СЕРВЕР (ФАРБОВАНА РИСКА ТА НАЗВА)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
         field: { name: 'Поточний сервер:' },
         onRender: function(item) {
-            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'user-select': 'none'});
+            item.removeClass('selector selector-item').css({'pointer-events': 'none'});
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
-                var status = isOk ? 'доступний' : 'недоступний';
+                var statusText = isOk ? 'доступний' : 'недоступний';
                 item.find('.settings-param__name').html(
                     '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
                     '<div>' +
                     '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_friendly + '</span>' +
-                    ' <span style="color:' + color + '">- ' + status + '</span>' +
+                    ' <span style="color:' + color + '">- ' + statusText + '</span>' +
                     '</div>'
                 );
             });
@@ -98,6 +89,7 @@ function startMe() {
         }
     });
 
+    // 2. СПИСОК СЕРВЕРІВ
     servers.forEach(function(srv) {
         Lampa.SettingsApi.addParam({
             component: 'location_redirect',
@@ -122,6 +114,7 @@ function startMe() {
         });
     });
 
+    // 3. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'apply_reload', type: 'static' },
