@@ -10,7 +10,7 @@ var servers = [
 ];
 
 var states_cache = {}; 
-var selected_target = ''; // Глобальна змінна для миттєвого вибору
+var selected_target = ''; 
 
 function getFriendlyName(url) {
     if (!url) return 'Lampa';
@@ -96,7 +96,7 @@ function startMe() {
                         Lampa.Noty.show('Сервер недоступний');
                         return;
                     }
-                    selected_target = srv.url; // Фіксуємо в змінну
+                    selected_target = srv.url;
                     Lampa.Storage.set('location_server', srv.url);
                     item.parent().find('.settings-param__name').each(function() {
                         $(this).html($(this).html().replace('✓ ', ''));
@@ -118,16 +118,23 @@ function startMe() {
                 
                 if (target && target !== '-') {
                     var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
-                    Lampa.Storage.set('server_url', clean);
                     
-                    Lampa.Noty.show('Зміна сервера на ' + clean);
+                    // Записуємо адресу в налаштування
+                    Lampa.Storage.set('server_url', clean);
+                    Lampa.Storage.set('location_server', '-');
+                    
+                    Lampa.Noty.show('Перезавантаження платформи...');
                     
                     setTimeout(function(){
-                        // Пряме перезавантаження WebView на нову адресу
-                        window.location.replace('http://' + clean + '/?hash=' + Math.random());
+                        // ПРИМУСОВИЙ ПЕРЕЗАПУСК ЧЕРЕЗ API ПЛАТФОРМИ
+                        if(Lampa.Platform.is('android')) {
+                            Lampa.Platform.run('http://' + clean);
+                        } else {
+                            window.location.replace('http://' + clean + '/?r=' + Math.random());
+                        }
                     }, 500);
                 } else {
-                    Lampa.Noty.show('Помилка: Виберіть сервер ще раз');
+                    Lampa.Noty.show('Виберіть сервер зі списку');
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
