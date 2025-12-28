@@ -19,21 +19,34 @@ function getFriendlyName(url) {
     return found ? found.name : 'Lampa - (' + host + ')';
 }
 
+// Універсальна перевірка, якій байдуже на наявність картинок
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? window.location.protocol + '//' + domain : domain;
 
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', testUrl + '/favicon.ico?t=' + Math.random(), true);
-    xhr.onload = function() {
-        if (xhr.status >= 200 && xhr.status < 400) callback(true);
-        else callback(false);
+    var script = document.createElement('script');
+    var timeout = setTimeout(function() {
+        cleanup();
+        callback(false);
+    }, 4000);
+
+    function cleanup() {
+        clearTimeout(timeout);
+        if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    // Якщо сервер відповів будь-чим (навіть 404), це змінить стан скрипта
+    script.onload = function() { cleanup(); callback(true); };
+    script.onerror = function() { 
+        cleanup(); 
+        // На багатьох ТБ помилка CORS при завантаженні скрипта все одно означає, що сервер "пінгнувся"
+        // Але якщо це повна мережева помилка (як на вашому скріні), буде статус false
+        callback(false); 
     };
-    xhr.onerror = function() { callback(false); };
-    xhr.timeout = 2500;
-    xhr.ontimeout = function() { callback(false); };
-    xhr.send();
+
+    script.src = testUrl + '/?check=' + Math.random();
+    document.head.appendChild(script);
 }
 
 function startMe() { 
@@ -64,7 +77,6 @@ function startMe() {
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
                 var status = isOk ? 'доступний' : 'недоступний';
-                
                 item.find('.settings-param__name').html(
                     '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
                     '<div>' +
