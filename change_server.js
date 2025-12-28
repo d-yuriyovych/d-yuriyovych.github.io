@@ -37,19 +37,19 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // 1. ПОТОЧНИЙ СЕРВЕР (З ПРОБІЛОМ ТА НОВИМ РЯДКОМ)
+    // 1. ПОТОЧНИЙ СЕРВЕР (БЕЗ ФОКУСУ / НЕ ВИДІЛЯЄТЬСЯ)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
         field: { name: 'Поточний сервер:' },
         onRender: function(item) {
+            // Тут ми НЕ додаємо клас 'selector', тому пульт його ігнорує
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
                 var status = isOk ? 'доступний' : 'недоступний';
                 var isSelected = (Lampa.Storage.get('location_server') === '-' || !Lampa.Storage.get('location_server'));
                 var mark = isSelected ? '<span style="color:#2ecc71">✓ </span>' : '';
                 
-                // Додано <br><br> для пробілу між заголовком і назвою
                 item.find('.settings-param__name').html(
                     'Поточний сервер:<br><br>' + 
                     '<div style="margin-top: 5px;">' +
@@ -61,14 +61,18 @@ function startMe() {
         }
     });
 
-    // 2. ЗАГОЛОВОК
+    // 2. ЗАГОЛОВОК (БЕЗ ФОКУСУ / НЕ ВИДІЛЯЄТЬСЯ)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'title_header', type: 'static' },
-        field: { name: 'Виберіть сервер Lampa:' }
+        field: { name: 'Виберіть сервер Lampa:' },
+        onRender: function(item) {
+            // Робимо заголовок візуально трохи виразнішим, але без фокусу
+            item.find('.settings-param__name').css({'opacity': '0.8', 'padding-top': '10px'});
+        }
     });
 
-    // 3. СПИСОК СЕРВЕРІВ
+    // 3. СПИСОК СЕРВЕРІВ (ВИДІЛЯЮТЬСЯ ПУЛЬТОМ)
     var servers = [
         { name: 'Lampac Koyeb', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
         { name: 'lampa.mx', url: 'lampa.mx' }
@@ -80,6 +84,7 @@ function startMe() {
             param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'static' },
             field: { name: srv.name },
             onRender: function(item) {
+                // Додаємо клас selector, щоб працював фокус на смарт-тв
                 item.addClass('selector-item selector').css('cursor', 'pointer');
                 item.on('hover:enter click', function() {
                     Lampa.Storage.set('location_server', srv.url);
@@ -96,7 +101,7 @@ function startMe() {
         });
     });
 
-    // 4. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ
+    // 4. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ (ВИДІЛЯЄТЬСЯ ПУЛЬТОМ)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'apply_reload', type: 'static' },
@@ -111,7 +116,7 @@ function startMe() {
                     Lampa.Noty.show('Сервер не змінено');
                 }
             });
-            item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
+            item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold', 'padding-top': '10px'});
         }
     });
 } 
