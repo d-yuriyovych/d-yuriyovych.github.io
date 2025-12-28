@@ -10,12 +10,13 @@ var servers = [
 ];
 
 var server_states = {};
+var selected_target = null; // Тимчасова змінна для вибору
 
 function getFriendlyName(url) {
     if (!url) return 'Lampa';
-    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
+    var host = url.replace(/https?:\/\//, "").split('/')[0].split(':')[0].toLowerCase();
     var found = servers.find(function(s) { 
-        var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
+        var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].split(':')[0].toLowerCase();
         return host === sUrl;
     });
     return found ? found.name : 'Lampa - (' + host + ')';
@@ -23,8 +24,8 @@ function getFriendlyName(url) {
 
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
-    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
-    if (host === window.location.hostname.toLowerCase()) return callback(true);
+    var host = url.replace(/https?:\/\//, "").split('/')[0].split(':')[0].toLowerCase();
+    if (host === window.location.hostname.toLowerCase().split(':')[0]) return callback(true);
 
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
@@ -45,22 +46,12 @@ function checkOnline(url, callback) {
 }
 
 function startMe() { 
-    var current_host = window.location.hostname.toLowerCase().replace(/\/$/, "");
+    var current_host = window.location.hostname.toLowerCase().split(':')[0];
     var current_friendly = getFriendlyName(current_host);
-    var savedServer = Lampa.Storage.get('location_server', '-');
-
-    // ПЕРЕВІРКА НА ЗАЦИКЛЕННЯ ПРИ ЗАПУСКУ
-    if (savedServer !== '-' && savedServer !== '') {
-        var cleanSaved = savedServer.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
-        // Якщо ми вже на цьому сервері - скидаємо вибір, щоб не було петлі
-        if (current_host === cleanSaved) {
-            Lampa.Storage.set('location_server', '-');
-        } else if (window.location.search.indexOf('redirect=1') === -1) {
-            // Якщо сервер інший і це не редірект-петля - переходимо
-            window.location.href = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer + '?redirect=1';
-            return;
-        }
-    }
+    
+    // КРОК 1: ВБИВАЄМО ЗАЦИКЛЕННЯ ПРИ СТАРТІ
+    // Щойно ми зайшли на сторінку - чистимо команду на редірект
+    Lampa.Storage.set('location_server', '-');
 
     Lampa.SettingsApi.addComponent({ 
         component: 'location_redirect', 
@@ -105,20 +96,18 @@ function startMe() {
             onRender: function(item) {
                 item.addClass('selector selector-item').css('cursor', 'pointer');
                 
-                // ТУТ ВИПРАВЛЕНО: Тільки візуальний вибір, без негайного редіректу
                 item.on('hover:enter click', function() {
                     if (server_states[srv.url] === false) {
                         Lampa.Noty.show('Сервер недоступний');
                         return;
                     }
-                    // Просто зберігаємо в пам'ять, редірект зробить кнопка нижче
-                    window.pending_lampa_server = srv.url; 
-                    Lampa.Noty.show('Вибрано: ' + srv.name + '. Тепер натисніть кнопку "ЗМІНИТИ СЕРВЕР"');
                     
-                    item.parent().find('.settings-param__name').each(function() {
-                        $(this).html($(this).html().replace('✓ ', ''));
-                    });
-                    item.find('.settings-param__name').prepend('✓ ');
+                    // КРОК 2: ТІЛЬКИ ВІЗУАЛЬНИЙ ВИБІР
+                    selected_target = srv.url; 
+                    Lampa.Noty.show('Вибрано: ' + srv.name);
+                    
+                    item.parent().find('.settings-param__name').css('color', 'white');
+                    item.find('.settings-param__name').css('color', 'yellow');
                 });
 
                 setTimeout(function() {
@@ -128,7 +117,7 @@ function startMe() {
                         item.css('opacity', isOk ? '1' : '0.4');
                         item.find('.settings-param__name').html(srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
                     });
-                }, index * 300);
+                }, index * 200);
             }
         });
     });
@@ -140,13 +129,22 @@ function startMe() {
         onRender: function(item) {
             item.addClass('selector selector-item').css({'cursor': 'pointer', 'margin-top': '15px'});
             item.on('hover:enter click', function() {
-                var target = window.pending_lampa_server;
-                if (target) {
-                    // Тільки тут ми реально записуємо в Storage і перезавантажуємо
-                    Lampa.Storage.set('location_server', target);
-                    window.location.href = (target.indexOf('://') === -1 ? 'http://' : '') + target + '?redirect=1';
+                if (selected_target) {
+                    var host_to_go = selected_target.replace(/https?:\/\//, "").split('/')[0].split(':')[0].toLowerCase();
+                    
+                    // Якщо ми вже тут - нічого не робимо
+                    if (host_to_go === current_host) {
+                        Lampa.Noty.show('Ви вже на цьому сервері');
+                        return;
+                    }
+
+                    // КРОК 3: ПЕРЕХІД БЕЗ ПОВЕРНЕННЯ
+                    // Пишемо в Storage тільки перед самим стрибком
+                    Lampa.Storage.set('location_server', selected_target);
+                    var finalUrl = (selected_target.indexOf('://') === -1 ? 'http://' : '') + selected_target;
+                    window.location.replace(finalUrl + (finalUrl.indexOf('?') > -1 ? '&' : '?') + 'redirect=1');
                 } else {
-                    Lampa.Noty.show('Спочатку виберіть сервер зі списку');
+                    Lampa.Noty.show('Виберіть сервер зі списку');
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
