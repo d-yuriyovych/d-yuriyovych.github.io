@@ -2,10 +2,10 @@
 var icon_server_redirect = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 13H3V11H21V13ZM21 7H3V5H21V7ZM21 19H3V17H21V19Z" fill="white"/></svg>';
 
 var servers = [
-    { name: 'Lampa - (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
-    { name: 'Lampa - (MX)', url: 'lampa.mx' }, 
-    { name: 'Lampa - (NNMTV)', url: 'lam.nnmtv.pw' }, 
-    { name: 'Lampa - (VIP)', url: 'lampa.vip' },
+    { name: 'Lampa (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
+    { name: 'Lampa (MX)', url: 'lampa.mx' }, 
+    { name: 'Lampa (NNMTV)', url: 'lam.nnmtv.pw' }, 
+    { name: 'Lampa (VIP)', url: 'lampa.vip' },
     { name: 'Prisma', url: 'prisma.ws/' }
 ];
 
@@ -30,8 +30,11 @@ function checkOnline(url, callback) {
 function startMe() { 
     var current_host = window.location.hostname.toLowerCase();
     
-    // Очищуємо всі черги переходу, щоб Android не робив відкатів
-    Lampa.Storage.set('location_server', '-');
+    // ПОВНЕ ВИМКНЕННЯ ВНУТРІШНЬОГО ПЕРЕХОДУ ПРИ СТАРТІ
+    // Ми нічого не пишемо в location_server при завантаженні, щоб не провокувати Android
+    if (Lampa.Storage.get('location_server') !== '-') {
+        Lampa.Storage.set('location_server', '-');
+    }
 
     Lampa.SettingsApi.addComponent({ 
         component: 'location_redirect', 
@@ -39,7 +42,7 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // Поточний сервер (Стилі як раніше)
+    // Поточний сервер
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
@@ -91,9 +94,8 @@ function startMe() {
                     checkOnline(srv.url, function(isOk) {
                         server_states[srv.url] = isOk;
                         var color = isOk ? '#2ecc71' : '#ff4c4c';
-                        var isSelected = Lampa.Storage.get('location_server_tmp') === srv.url;
                         item.css('opacity', isOk ? '1' : '0.4');
-                        item.find('.settings-param__name').html((isSelected ? '✓ ' : '') + srv.name + ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
+                        item.find('.settings-param__name').html(srv.name + ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
                     });
                 }, index * 400);
             }
@@ -111,8 +113,8 @@ function startMe() {
                 var target = Lampa.Storage.get('location_server_tmp', '-');
                 if (target !== '-' && server_states[target]) {
                     Lampa.Storage.set('location_server_tmp', '-');
-                    // Використовуємо прямий перехід без параметрів, щоб Android не "лякався"
-                    window.location.href = window.location.protocol + '//' + target;
+                    // Використовуємо replace для жорсткої заміни адреси
+                    window.location.replace(window.location.protocol + '//' + target);
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
