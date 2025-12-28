@@ -15,7 +15,7 @@ function checkOnline(url, callback) {
     img.onload = function() { callback(true); };
     img.onerror = function() { callback(true); }; 
     img.src = testUrl + '/favicon.ico?v=' + Math.random();
-    setTimeout(function() { if(!img.complete) { img.src = ''; callback(false); } }, 2000);
+    setTimeout(function() { if(!img.complete) { img.src = ''; callback(false); } }, 2500);
 }
 
 function startMe() { 
@@ -43,66 +43,72 @@ function startMe() {
         { name: 'lampa.mx', url: 'lampa.mx' }
     ];
 
-    // --- Побудова меню ---
-
-    // 1. ПОТОЧНИЙ СЕРВЕР (сама перша позиція)
+    // 1. ПЕРШИЙ РЯДОК: ПОТОЧНИЙ СЕРВЕР З ПЕРЕВІРКОЮ
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
-        param: { name: 'current_info', type: 'static' },
-        field: { name: 'Поточний : ' + current_friendly }
+        param: { name: 'main_status_row', type: 'select', values: {'-': '...'}, default: '-' },
+        field: { name: 'Завантаження статусу...' },
+        onRender: function(item) {
+            checkOnline(current_host, function(isOk) {
+                var color = isOk ? '#2ecc71' : '#ff4c4c';
+                var status = isOk ? ' - доступний' : ' - недоступний';
+                item.find('.settings-param__name').html('Поточний : <span style="color:' + color + '">' + current_friendly + status + '</span>');
+                item.find('.settings-param__value').hide(); // Ховаємо зайве значення select
+            });
+        }
     });
 
     // 2. ЗАГОЛОВОК З ДВОКРАПКОЮ
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
-        param: { name: 'title_header', type: 'static' },
+        param: { name: 'header_text', type: 'static' },
         field: { name: 'Виберіть сервер Lampa:' }
     });
 
-    // 3. СПИСОК СЕРВЕРІВ
+    // 3. СПИСОК СЕРВЕРІВ (КЛІКАБЕЛЬНІ)
     serverList.forEach(function(srv) {
         Lampa.SettingsApi.addParam({
             component: 'location_redirect',
-            param: { name: 'srv_btn_' + srv.url.replace(/\W/g, ''), type: 'button' },
+            param: { name: 'srv_click_' + srv.url.replace(/\W/g, ''), type: 'select', values: {'-': srv.name}, default: '-' },
             field: { name: srv.name },
-            onSelect: function() {
+            onChange: function() {
                 Lampa.Storage.set('location_server', srv.url);
                 Lampa.Noty.show('Вибрано: ' + srv.name);
-                Lampa.Settings.update(); // Оновлюємо, щоб з'явилася галочка
+                Lampa.Settings.update();
             },
             onRender: function(item) {
-                var domain = (srv.url === '-') ? current_host : srv.url;
+                item.find('.settings-param__value').hide();
+                var nameEl = item.find('.settings-param__name');
                 
-                checkOnline(domain, function(isOk) {
-                    var color = isOk ? '#2ecc71' : '#ff4c4c';
-                    var status = isOk ? ' - доступний' : ' - недоступний';
-                    // Додаємо статус прямо в назву
-                    item.find('.settings-param__name').append(' <span style="color:' + color + '; font-size: 0.8em;">' + status + '</span>');
-                });
-
-                // Якщо цей сервер вибраний у налаштуваннях - ставимо галочку
+                // Галочка для обраного
                 if (Lampa.Storage.get('location_server') === srv.url) {
-                    item.find('.settings-param__name').prepend('<span style="color:#2ecc71">✓ </span>');
+                    nameEl.prepend('<span style="color:#2ecc71">✓ </span>');
                 }
+
+                // Статус
+                checkOnline((srv.url === '-') ? current_host : srv.url, function(isOk) {
+                    var color = isOk ? '#2ecc71' : '#ff4c4c';
+                    nameEl.append(' <span style="color:' + color + '; font-size: 0.85em;">- доступний</span>');
+                });
             }
         });
     });
 
-    // 4. КНОПКА ЗМІНИТИ
+    // 4. СИНЯ КНОПКА ПЕРЕЗАВАНТАЖЕННЯ
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
-        param: { name: 'do_redirect_action', type: 'button' },
+        param: { name: 'apply_btn', type: 'select', values: {'-': 'ВИКОНАТИ'}, default: '-' },
         field: { name: 'ЗМІНИТИ СЕРВЕР (Перезавантажити)' },
-        onSelect: function() {
+        onChange: function() {
             var target = Lampa.Storage.get('location_server');
             if (!target || target === '-') {
-                Lampa.Noty.show('Ви вже на цьому сервері або сервер не обрано');
+                Lampa.Noty.show('Сервер не змінено');
             } else {
                 window.location.href = 'http://' + target + '?redirect=1';
             }
         },
         onRender: function(item) {
-            item.css('margin-top', '20px');
+            item.find('.settings-param__value').hide();
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
         }
     });
