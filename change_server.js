@@ -2,7 +2,7 @@
 var icon_server_redirect = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 13H3V11H21V13ZM21 7H3V5H21V7ZM21 19H3V17H21V19Z" fill="white"/></svg>';
 
 var servers = [
-    { name: 'Lampa - (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
+    { name: 'Lampa (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
     { name: 'Lampa (MX)', url: 'lampa.mx' }, 
     { name: 'Lampa (NNMTV)', url: 'lam.nnmtv.pw' }, 
     { name: 'Lampa (VIP)', url: 'lampa.vip' },
@@ -113,14 +113,14 @@ function startMe() {
                 item.addClass('selector selector-item').css('cursor', 'pointer');
                 
                 item.on('hover:enter click', function() {
-                    // ПЕРЕВІРКА ДОСТУПНОСТІ ПЕРЕД ВИБОРОМ
+                    // ПЕРЕВІРКА ДОСТУПНОСТІ ПЕРЕД Вибором
                     if (server_states[srv.url] === false) {
                         Lampa.Noty.show('Сервер недоступний');
                         return;
                     }
                     Lampa.Storage.set('location_server', srv.url);
                     Lampa.Settings.update();
-                    Lampa.Noty.show('Вибрано: ' + srv.name);
+                    Lampa.Noty.show('Вибрано: ' + srv.name ', тепер натисніть кнопку: Змінити сервер.');
                 });
 
                 setTimeout(function() {
@@ -142,7 +142,7 @@ function startMe() {
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'apply_reload', type: 'static' },
-        field: { name: 'ЗМІНИТИ СЕРВЕР (Перезавантажити)' },
+        field: { name: 'Змінити сервер' },
         onRender: function(item) {
             item.addClass('selector selector-item').css({'cursor': 'pointer', 'margin-top': '15px'});
             item.on('hover:enter click', function() {
