@@ -37,24 +37,25 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // 1. ПОТОЧНИЙ СЕРВЕР (НЕКЛІКАБЕЛЬНИЙ, НОВИЙ СТИЛЬ)
+    // 1. ПОТОЧНИЙ СЕРВЕР (З ПРОБІЛОМ ТА НОВИМ РЯДКОМ)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
         field: { name: 'Поточний сервер:' },
         onRender: function(item) {
-            // НЕ додаємо класи selector/selector-item, щоб не було фокусу та кліку
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
                 var status = isOk ? 'доступний' : 'недоступний';
                 var isSelected = (Lampa.Storage.get('location_server') === '-' || !Lampa.Storage.get('location_server'));
                 var mark = isSelected ? '<span style="color:#2ecc71">✓ </span>' : '';
                 
-                // Форматування: Поточний сервер: <br> Назва (жовта) - Статус
+                // Додано <br><br> для пробілу між заголовком і назвою
                 item.find('.settings-param__name').html(
-                    'Поточний сервер:<br>' + 
+                    'Поточний сервер:<br><br>' + 
+                    '<div style="margin-top: 5px;">' +
                     mark + '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_friendly + '</span>' +
-                    ' — <span style="color:' + color + '">' + status + '</span>'
+                    ' — <span style="color:' + color + '">' + status + '</span>' +
+                    '</div>'
                 );
             });
         }
@@ -67,7 +68,7 @@ function startMe() {
         field: { name: 'Виберіть сервер Lampa:' }
     });
 
-    // 3. СПИСОК СЕРВЕРІВ (КЛІКАБЕЛЬНІ)
+    // 3. СПИСОК СЕРВЕРІВ
     var servers = [
         { name: 'Lampac Koyeb', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
         { name: 'lampa.mx', url: 'lampa.mx' }
@@ -95,7 +96,7 @@ function startMe() {
         });
     });
 
-    // 4. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ (СИНЯ, КЛІКАБЕЛЬНА)
+    // 4. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'apply_reload', type: 'static' },
