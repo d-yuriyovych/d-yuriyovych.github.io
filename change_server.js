@@ -49,43 +49,41 @@ function startMe() {
         field: { name: 'Виберіть сервер Lampa' }, 
         onChange: function () { startMe(); },
         onRender: function(item) {
-            var $valField = item.find('.settings-param__value');
-
-            var updateAll = function() {
-                // 1. Оновлення статусу в головному рядку (Скрін 1)
-                var current_val = Lampa.Storage.get('location_server') || '-';
-                var hostToTest = (current_val === '-') ? current_host : current_val;
-                
-                checkOnline(hostToTest, function(isOk) {
+            
+            // Функція, яка фарбує і додає статус
+            var applyStatus = function($el, sKey) {
+                if ($el.data('applied')) return;
+                var domain = (sKey === '-') ? current_host : sKey;
+                checkOnline(domain, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
                     var status = isOk ? ' - доступний' : ' - недоступний';
-                    $valField.html('<span style="color:' + color + '">' + servers[current_val] + status + '</span>');
-                });
-
-                // 2. Оновлення статусів у списку "Вибрати" (Скрін 2)
-                $('.selector__item').each(function() {
-                    var $el = $(this);
-                    var text = $el.text().split(' -')[0].trim();
-                    Object.keys(servers).forEach(function(sKey) {
-                        if (text === servers[sKey]) {
-                            checkOnline((sKey === '-') ? current_host : sKey, function(isOk) {
-                                var color = isOk ? '#2ecc71' : '#ff4c4c';
-                                var status = isOk ? ' - доступний' : ' - недоступний';
-                                $el.html('<span style="color:' + color + '">' + servers[sKey] + status + '</span>');
-                            });
-                        }
-                    });
+                    $el.html('<span style="color:' + color + '">' + servers[sKey] + status + '</span>');
+                    $el.data('applied', true);
                 });
             };
 
-            // Запускаємо перевірку відразу при рендері
-            setTimeout(updateAll, 100);
+            // Кожні 500мс перевіряємо, чи з'явилися нові елементи в інтерфейсі
+            var timer = setInterval(function() {
+                // 1. Шукаємо головний рядок (Скрін 1)
+                var $valField = item.find('.settings-param__value');
+                if ($valField.length) {
+                    var current_val = Lampa.Storage.get('location_server') || '-';
+                    applyStatus($valField, current_val);
+                }
 
-            // Використовуємо MutationObserver для відлову відкриття модального вікна
-            var observer = new MutationObserver(updateAll);
-            observer.observe(document.body, { childList: true, subtree: true });
-            
-            item.on('destroy', function() { observer.disconnect(); });
+                // 2. Шукаємо пункти в меню "Вибрати" (Скрін 2)
+                $('.selector__item').each(function() {
+                    var $this = $(this);
+                    var text = $this.text().split(' -')[0].trim();
+                    Object.keys(servers).forEach(function(key) {
+                        if (text === servers[key]) {
+                            applyStatus($this, key);
+                        }
+                    });
+                });
+            }, 500);
+
+            item.on('destroy', function() { clearInterval(timer); });
         }
     }); 
 } 
