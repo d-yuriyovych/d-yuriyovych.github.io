@@ -24,23 +24,14 @@ function checkOnline(url, callback) {
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? window.location.protocol + '//' + domain : domain;
 
-    // Використовуємо HEAD запит — він швидший і перевіряє саме статус коду (404, 500 тощо)
     var xhr = new XMLHttpRequest();
-    xhr.open('HEAD', testUrl + '?t=' + Math.random(), true);
-    
+    xhr.open('GET', testUrl + '/favicon.ico?t=' + Math.random(), true);
     xhr.onload = function() {
-        // Якщо статус від 200 до 399 — сервер живий і Lampa там є
         if (xhr.status >= 200 && xhr.status < 400) callback(true);
-        else callback(false); // 404 або 500
+        else callback(false);
     };
-    
-    xhr.onerror = function() {
-        // Якщо запит заблоковано CORS, ми все одно знаємо, що сервер відповів (бо була спроба з'єднання)
-        // У багатьох випадках на ТБ це єдиний спосіб зрозуміти, що домен "живий"
-        callback(true); 
-    };
-    
-    xhr.timeout = 3000;
+    xhr.onerror = function() { callback(false); };
+    xhr.timeout = 2500;
     xhr.ontimeout = function() { callback(false); };
     xhr.send();
 }
@@ -73,11 +64,12 @@ function startMe() {
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
                 var status = isOk ? 'доступний' : 'недоступний';
+                
                 item.find('.settings-param__name').html(
                     '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
                     '<div>' +
                     '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_friendly + '</span>' +
-                    ' — <span style="color:' + color + '">' + status + '</span>' +
+                    ' <span style="color:' + color + '">- ' + status + '</span>' +
                     '</div>'
                 );
             });
