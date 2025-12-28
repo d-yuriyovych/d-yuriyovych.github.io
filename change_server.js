@@ -11,6 +11,16 @@ var servers = [
 
 var states_cache = {}; 
 
+function getFriendlyName(url) {
+    if (!url) return 'Lampa';
+    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
+    var found = servers.find(function(s) { 
+        var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
+        return host === sUrl || host.indexOf(sUrl) !== -1;
+    });
+    return found ? found.name : host;
+}
+
 function checkOnline(url, callback) {
     var domain = url.replace(/https?:\/\//, "").split('/')[0].replace(/\/$/, "");
     if (states_cache[domain] !== undefined) return callback(states_cache[domain]);
@@ -18,8 +28,7 @@ function checkOnline(url, callback) {
     var controller = new AbortController();
     var timeoutId = setTimeout(function() { controller.abort(); }, 2000); 
 
-    // Додаємо випадковий t= для ігнорування кешу мережі
-    fetch('http://' + domain + '/?t=' + Math.random(), { mode: 'no-cors', signal: controller.signal })
+    fetch('http://' + domain + '/?t=' + Date.now(), { mode: 'no-cors', signal: controller.signal })
         .then(function() {
             clearTimeout(timeoutId);
             states_cache[domain] = true;
@@ -33,6 +42,12 @@ function checkOnline(url, callback) {
 }
 
 function startMe() { 
+    // ОЧИЩЕННЯ КЕШУ ДЛЯ ПОВТОРНОЇ ПЕРЕВІРКИ
+    states_cache = {};
+
+    var current_host = window.location.hostname;
+    var current_friendly = getFriendlyName(current_host);
+
     Lampa.SettingsApi.addComponent({ 
         component: 'location_redirect', 
         name: 'Зміна сервера', 
@@ -45,18 +60,25 @@ function startMe() {
         field: { name: 'Поточний сервер:' },
         onRender: function(item) {
             item.removeClass('selector selector-item').css({'pointer-events': 'none'});
-            var current_host = window.location.hostname;
-            // При кожному рендері (відкритті меню) видаляємо старий стан поточної адреси
-            delete states_cache[current_host]; 
-            
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
                 item.find('.settings-param__name').html(
                     '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
-                    '<div><span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_host + '</span>' +
-                    ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span></div>'
+                    '<div>' +
+                    '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_friendly + '</span>' +
+                    ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>' +
+                    '</div>'
                 );
             });
+        }
+    });
+
+    Lampa.SettingsApi.addParam({
+        component: 'location_redirect',
+        param: { name: 'title_header', type: 'static' },
+        field: { name: 'Виберіть сервер Lampa:' },
+        onRender: function(item) {
+            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'padding-top': '15px', 'opacity': '0.6'});
         }
     });
 
@@ -67,19 +89,15 @@ function startMe() {
             field: { name: srv.name },
             onRender: function(item) {
                 item.addClass('selector selector-item');
-                var srv_domain = srv.url.replace(/https?:\/\//, "").split('/')[0].replace(/\/$/, "");
-                
-                // Очищуємо кеш для цього сервера при кожному відкритті меню
-                delete states_cache[srv_domain];
-
                 checkOnline(srv.url, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
                     item.find('.settings-param__name').html(srv.name + ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
-                    item.css('opacity', isOk ? '1' : '0.4');
+                    if (!isOk) item.css('opacity', '0.4');
                 });
 
                 item.on('hover:enter click', function() {
-                    if (states_cache[srv_domain] === false) {
+                    var domain = srv.url.replace(/https?:\/\//, "").split('/')[0].replace(/\/$/, "");
+                    if (states_cache[domain] === false) {
                         Lampa.Noty.show('Сервер недоступний');
                         return;
                     }
@@ -103,25 +121,16 @@ function startMe() {
                 if (target && target !== '-') {
                     var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // Крок 1: Оновлення всіх можливих ключів для Android
+                    // ПРИМУСОВИЙ ЗАПИС У ПАМ'ЯТЬ ДОДАТКА
                     Lampa.Storage.set('server_url', clean);
                     Lampa.Storage.set('location_server', '-');
                     
-                    Lampa.Noty.show('Перехід на ' + clean);
+                    Lampa.Noty.show('Перезавантаження...');
                     
-                    // Крок 2: Примусове завантаження через assign та випадковий параметр
                     setTimeout(function(){
-                        var final_url = 'http://' + clean + '/?v=' + Math.random();
-                        
-                        // Спроба через інтерфейс Android (якщо він прокинутий)
-                        if(window.Android && window.Android.changeServer) {
-                            window.Android.changeServer(final_url);
-                        } else {
-                            // Жорсткий метод для WebView
-                            window.location.assign(final_url);
-                            setTimeout(function() { window.location.href = final_url; }, 200);
-                        }
-                    }, 400);
+                        // Спроба через повне оновлення з новим URL
+                        window.location.href = 'http://' + clean + '/index.html?redirect=' + Date.now();
+                    }, 300);
                 } else {
                     Lampa.Noty.show('Виберіть доступний сервер');
                 }
@@ -131,13 +140,9 @@ function startMe() {
     });
 } 
 
-if(window.appready) startMe(); 
-else Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); });
-
-// Додатковий тригер на відкриття налаштувань для оновлення статусів
+// Слухаємо відкриття налаштувань для оновлення статусів
+Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); });
 Lampa.Listener.follow('settings', function(e) {
-    if(e.type == 'open' && e.name == 'location_redirect') {
-        states_cache = {}; // Очищення кешу при кожному вході
-    }
+    if(e.type == 'open' && e.name == 'location_redirect') startMe();
 });
 })();
