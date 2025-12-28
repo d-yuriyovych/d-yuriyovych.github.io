@@ -102,7 +102,7 @@ function startMe() {
                         $(this).html($(this).html().replace('✓ ', ''));
                     });
                     item.find('.settings-param__name').prepend('✓ ');
-                    Lampa.Noty.show('Вибрано: ' + srv.name + ', тепер натисніть кнопку: Змінити сервер');
+                    Lampa.Noty.show('Вибрано: ' + srv.name + ', тепер натисніть кнопку: Змінити сервер.');
                 });
             }
         });
