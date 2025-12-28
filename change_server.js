@@ -9,51 +9,23 @@ var servers = [
     { name: 'Prisma', url: 'prisma.ws/' }
 ];
 
-var server_states = {};
-
-function getFriendlyName(url) {
-    if (!url) return 'Lampa';
-    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
-    var found = servers.find(function(s) { 
-        var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
-        return host === sUrl || host.indexOf(sUrl) !== -1 || sUrl.indexOf(host) !== -1;
-    });
-    return found ? found.name : 'Lampa - (' + host + ')';
-}
+var states = {}; // Глобальний кеш статусів
 
 function checkOnline(url, callback) {
-    if (!url || url === '-') return callback(true);
-    var domain = url.split('?')[0].replace(/\/$/, "");
-    
-    // Якщо статус уже відомий, повертаємо його без нового fetch
-    if (server_states[domain] !== undefined) return callback(server_states[domain]);
+    var domain = url.replace(/https?:\/\//, "").split('/')[0].replace(/\/$/, "");
+    if (states[domain] !== undefined) return callback(states[domain]);
 
-    var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
-
-    fetch(testUrl, { mode: 'no-cors' })
-        .then(function() {
-            server_states[domain] = true;
-            callback(true);
-        })
-        .catch(function() {
-            server_states[domain] = false;
-            callback(false);
-        });
+    fetch('http://' + domain, { mode: 'no-cors' }).then(function() {
+        states[domain] = true;
+        callback(true);
+    }).catch(function() {
+        states[domain] = false;
+        callback(false);
+    });
 }
 
 function startMe() { 
     var current_host = window.location.hostname;
-    var current_friendly = getFriendlyName(current_host);
-
-    if (window.location.search.indexOf('redirect=1') === -1) { 
-        var savedServer = Lampa.Storage.get('location_server');
-        if(savedServer && savedServer !== '-' && current_host !== savedServer) { 
-             window.location.href = 'http://' + savedServer + '?redirect=1'; 
-             return;
-        } 
-    } else {
-        Lampa.Storage.set('location_server','-');
-    } 
 
     Lampa.SettingsApi.addComponent({ 
         component: 'location_redirect', 
@@ -66,16 +38,10 @@ function startMe() {
         param: { name: 'main_status', type: 'static' },
         field: { name: 'Поточний сервер:' },
         onRender: function(item) {
-            item.removeClass('selector selector-item').css({'pointer-events': 'none'});
+            item.removeClass('selector selector-item').css('pointer-events', 'none');
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
-                item.find('.settings-param__name').html(
-                    '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
-                    '<div>' +
-                    '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_friendly + '</span>' +
-                    ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>' +
-                    '</div>'
-                );
+                item.find('.settings-param__name').html('Поточний сервер: <span style="color:yellow">' + current_host + '</span> <span style="color:' + color + '">(' + (isOk ? 'ОК' : 'OFF') + ')</span>');
             });
         }
     });
@@ -85,8 +51,7 @@ function startMe() {
         param: { name: 'title_header', type: 'static' },
         field: { name: 'Виберіть сервер Lampa:' },
         onRender: function(item) {
-            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'padding-top': '15px'});
-            item.find('.settings-param__name').css('opacity', '0.6');
+            item.removeClass('selector selector-item').css({'pointer-events': 'none', 'opacity': '0.6'});
         }
     });
 
@@ -96,17 +61,17 @@ function startMe() {
             param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'static' },
             field: { name: srv.name },
             onRender: function(item) {
-                item.addClass('selector selector-item').css('cursor', 'pointer');
+                item.addClass('selector selector-item');
                 
                 checkOnline(srv.url, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
                     var isSelected = Lampa.Storage.get('location_server') === srv.url;
-                    item.find('.settings-param__name').html((isSelected ? '✓ ' : '') + srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
+                    item.find('.settings-param__name').html((isSelected ? '✓ ' : '') + srv.name + ' <span style="color:' + color + '">(' + (isOk ? 'доступний' : 'немає зв\'язку') + ')</span>');
                 });
 
                 item.on('hover:enter click', function() {
                     Lampa.Storage.set('location_server', srv.url);
-                    // Ручне оновлення галочок без Settings.update(), щоб не перезапускати fetch
+                    // Візуальне оновлення без перезавантаження
                     item.parent().find('.settings-param__name').each(function() {
                         $(this).html($(this).html().replace('✓ ', ''));
                     });
@@ -122,23 +87,22 @@ function startMe() {
         param: { name: 'apply_reload', type: 'static' },
         field: { name: 'Змінити сервер' },
         onRender: function(item) {
-            item.addClass('selector selector-item').css({'cursor': 'pointer', 'margin-top': '15px'});
-            item.on('hover:enter click', function() {
+            item.addClass('selector selector-item').on('hover:enter click', function() {
                 var target = Lampa.Storage.get('location_server');
                 if (target && target !== '-') {
-                    var clean_url = target.replace(/https?:\/\//, "").replace(/\/$/, "");
-                    // Це змушує Android додаток запам'ятати нову адресу
-                    Lampa.Storage.set('server_url', clean_url);
-                    window.location.href = 'http://' + clean_url + '?redirect=1';
-                } else {
-                    Lampa.Noty.show('Сервер не вибрано');
+                    var clean = target.replace(/https?:\/\//, "").replace(/\/$/, "");
+                    // КЛЮЧ до Android: міняємо внутрішню адресу додатка
+                    Lampa.Storage.set('server_url', clean);
+                    Lampa.Storage.set('location_server', '-');
+                    // Виконуємо жорсткий перехід
+                    window.location.replace('http://' + clean + '?redirect=1');
                 }
             });
-            item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
+            item.find('.settings-param__name').css('color', '#3498db');
         }
     });
 } 
 
 if(window.appready) startMe(); 
-else { Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); }); } 
+else Lampa.Listener.follow('app', function(e) { if(e.type == 'ready') startMe(); });
 })();
