@@ -14,26 +14,18 @@ var servers = [
 
 var server_states = {};
 
-/* === ЄДИНА ДОПОМІЖНА ФУНКЦІЯ (ДЛЯ ПОРІВНЯННЯ) === */
-function normalizeHost(host) {
-    return (host || '')
-        .replace(/^https?:\/\//,'')
-        .replace(/\/$/,'')
-        .toLowerCase();
-}
-
 function getFriendlyName(url) {
     if (!url) return 'Lampa';
-    var host = normalizeHost(url);
+    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
     var found = servers.find(function(s) { 
-        return normalizeHost(s.url) === host;
+        var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
+        return host === sUrl || host.indexOf(sUrl) !== -1 || sUrl.indexOf(host) !== -1;
     });
     return found ? found.name : 'Lampa - (' + host + ')';
 }
 
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
-
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
 
@@ -64,23 +56,8 @@ function checkOnline(url, callback) {
 
 function startMe() { 
 
-    var current_host = normalizeHost(window.location.hostname);
+    var current_host = window.location.hostname;
     var current_friendly = getFriendlyName(current_host);
-
-    /* === ВИПРАВЛЕННЯ ЗАЦИКЛЕННЯ (БЕЗ ЧІПАННЯ location_server) === */
-    var savedServer = normalizeHost(Lampa.Storage.get('location_server'));
-    var redirectLock = Lampa.Storage.get('location_redirect_lock');
-
-    if (!redirectLock && savedServer && savedServer !== '-' && current_host !== savedServer) {
-        Lampa.Storage.set('location_redirect_lock', true);
-        window.location.href = 'http://' + savedServer + '?redirect=1';
-        return;
-    }
-
-    /* === ЗНІМАЄМО БЛОКУВАННЯ, КОЛИ ВЖЕ НА ЦІЛІ === */
-    if (redirectLock && current_host === savedServer) {
-        Lampa.Storage.set('location_redirect_lock', false);
-    }
 
     Lampa.SettingsApi.addComponent({ 
         component: 'location_redirect', 
@@ -139,8 +116,8 @@ function startMe() {
                     checkOnline(srv.url, function(isOk) {
                         server_states[srv.url] = isOk;
                         var color = isOk ? '#2ecc71' : '#ff4c4c';
-                        var isSelected = normalizeHost(Lampa.Storage.get('location_server')) === normalizeHost(srv.url);
-
+                        var isSelected = Lampa.Storage.get('location_server') === srv.url;
+                        
                         if(!isOk) item.css('opacity','0.4');
                         else item.css('opacity','1');
 
@@ -164,12 +141,7 @@ function startMe() {
             item.on('hover:enter click', function() {
                 var target = Lampa.Storage.get('location_server');
                 if (target && target !== '-') {
-                    if (server_states[target] === false) {
-                        Lampa.Noty.show('Неможливо перейти: сервер недоступний');
-                    } else {
-                        Lampa.Storage.set('location_redirect_lock', true);
-                        window.location.href = 'http://' + target + '?redirect=1';
-                    }
+                    window.location.href = 'http://' + target;
                 } else {
                     Lampa.Noty.show('Сервер не вибрано');
                 }
