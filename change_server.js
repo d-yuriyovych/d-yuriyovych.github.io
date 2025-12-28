@@ -19,24 +19,37 @@ function getFriendlyName(url) {
     return found ? found.name : 'Lampa - (' + host + ')';
 }
 
+// НАЙБІЛЬШ НЕЗАЛЕЖНИЙ МЕТОД ПЕРЕВІРКИ
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
     var domain = url.split('?')[0].replace(/\/$/, "");
-    var testUrl = (domain.indexOf('://') === -1) ? window.location.protocol + '//' + domain : domain;
+    var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
 
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', testUrl, true);
-    // Нам байдуже на дані, нам головне чи сервер відгукнувся
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState > 1) { 
-            xhr.abort();
+    // Створюємо прихований фрейм. Браузер дозволяє йому "стукатися" куди завгодно
+    var frame = document.createElement('iframe');
+    frame.style.display = 'none';
+    var done = false;
+
+    var timer = setTimeout(function() {
+        if (!done) {
+            done = true;
+            document.body.removeChild(frame);
+            callback(false);
+        }
+    }, 4500);
+
+    // Якщо фрейм почав завантажуватись або видав помилку доступу - сервер живий
+    frame.onload = frame.onerror = function() {
+        if (!done) {
+            done = true;
+            clearTimeout(timer);
+            document.body.removeChild(frame);
             callback(true);
         }
     };
-    xhr.onerror = function() { callback(false); };
-    xhr.timeout = 4000;
-    xhr.ontimeout = function() { callback(false); };
-    xhr.send();
+
+    frame.src = testUrl;
+    document.body.appendChild(frame);
 }
 
 function startMe() { 
@@ -66,12 +79,11 @@ function startMe() {
             item.removeClass('selector selector-item').css({'pointer-events': 'none'});
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
-                var status = isOk ? 'доступний' : 'недоступний';
                 item.find('.settings-param__name').html(
                     '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
                     '<div>' +
                     '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_friendly + '</span>' +
-                    ' <span style="color:' + color + '">- ' + status + '</span>' +
+                    ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>' +
                     '</div>'
                 );
             });
@@ -101,15 +113,14 @@ function startMe() {
                     Lampa.Noty.show('Вибрано: ' + srv.name);
                 });
 
-                // Почергова перевірка для стабільності
+                // Перевіряємо з паузою, щоб не перевантажити браузер фреймами
                 setTimeout(function() {
                     checkOnline(srv.url, function(isOk) {
                         var color = isOk ? '#2ecc71' : '#ff4c4c';
                         var isSelected = Lampa.Storage.get('location_server') === srv.url;
-                        var mark = isSelected ? '<span style="color:#2ecc71">✓ </span>' : '';
-                        item.find('.settings-param__name').html(mark + srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
+                        item.find('.settings-param__name').html((isSelected ? '✓ ' : '') + srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
                     });
-                }, index * 400);
+                }, index * 600);
             }
         });
     });
