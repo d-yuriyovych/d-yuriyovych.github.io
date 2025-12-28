@@ -13,7 +13,7 @@ var server_states = {};
 
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
-    var domain = url.split('?')[0].replace(/\/$/, "").replace(/https?:\/\//, "");
+    var domain = url.split('?')[0].replace(/\/$/, "").replace("https://", "").replace("http://", "");
     var testUrl = window.location.protocol + '//' + domain + '/favicon.ico?v=' + Math.random();
 
     var img = new Image();
@@ -30,11 +30,8 @@ function checkOnline(url, callback) {
 function startMe() { 
     var current_host = window.location.hostname.toLowerCase();
     
-    // ПОВНЕ ВИМКНЕННЯ ВНУТРІШНЬОГО ПЕРЕХОДУ ПРИ СТАРТІ
-    // Ми нічого не пишемо в location_server при завантаженні, щоб не провокувати Android
-    if (Lampa.Storage.get('location_server') !== '-') {
-        Lampa.Storage.set('location_server', '-');
-    }
+    // Очищуємо старі мітки, щоб не було конфліктів
+    Lampa.Storage.set('location_server', '-');
 
     Lampa.SettingsApi.addComponent({ 
         component: 'location_redirect', 
@@ -42,7 +39,7 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // Поточний сервер
+    // 1. ПОТОЧНИЙ СЕРВЕР
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
@@ -52,9 +49,15 @@ function startMe() {
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
                 var srvTitle = current_host;
-                for(var i=0; i<servers.length; i++) {
-                    if(servers[i].url.indexOf(current_host) !== -1) srvTitle = servers[i].name;
+                
+                // Простий цикл для ТБ
+                for(var i = 0; i < servers.length; i++) {
+                    if(current_host.indexOf(servers[i].url.replace(/\/$/, "")) !== -1) {
+                        srvTitle = servers[i].name;
+                        break;
+                    }
                 }
+                
                 item.find('.settings-param__name').html(
                     '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
                     '<div><span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + srvTitle + '</span>' +
@@ -74,11 +77,11 @@ function startMe() {
         }
     });
 
-    // Список вибору
-    servers.forEach(function(srv, index) {
+    // 2. СПИСОК СЕРВЕРІВ
+    var createServerParam = function(srv, idx) {
         Lampa.SettingsApi.addParam({
             component: 'location_redirect',
-            param: { name: 'srv_' + srv.url.replace(/\W/g, ''), type: 'static' },
+            param: { name: 'srv_' + idx, type: 'static' },
             field: { name: srv.name },
             onRender: function(item) {
                 item.addClass('selector selector-item').css('cursor', 'pointer');
@@ -97,12 +100,16 @@ function startMe() {
                         item.css('opacity', isOk ? '1' : '0.4');
                         item.find('.settings-param__name').html(srv.name + ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
                     });
-                }, index * 400);
+                }, idx * 400);
             }
         });
-    });
+    };
 
-    // Кнопка переходу
+    for(var j = 0; j < servers.length; j++) {
+        createServerParam(servers[j], j);
+    }
+
+    // 3. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'apply_reload', type: 'static' },
@@ -113,8 +120,8 @@ function startMe() {
                 var target = Lampa.Storage.get('location_server_tmp', '-');
                 if (target !== '-' && server_states[target]) {
                     Lampa.Storage.set('location_server_tmp', '-');
-                    // Використовуємо replace для жорсткої заміни адреси
-                    window.location.replace(window.location.protocol + '//' + target);
+                    var finalUrl = window.location.protocol + '//' + target;
+                    window.location.href = finalUrl;
                 }
             });
             item.find('.settings-param__name').css({'color': '#3498db', 'font-weight': 'bold'});
