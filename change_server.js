@@ -120,7 +120,7 @@ function startMe() {
                     }
                     Lampa.Storage.set('location_server', srv.url);
                     Lampa.Settings.update();
-                    Lampa.Noty.show('Вибрано: ' + srv.name + ', тепер натисніть кнопку: 'Змінити сервер.'');
+                    Lampa.Noty.show('Вибрано: ' + srv.name + ', тепер натисніть кнопку: Змінити сервер.');
                 });
 
                 setTimeout(function() {
