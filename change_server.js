@@ -9,7 +9,6 @@ var servers = [
     { name: 'Prisma', url: 'prisma.ws/' }
 ];
 
-// Об'єкт для зберігання реальних статусів
 var server_states = {};
 
 function getFriendlyName(url) {
@@ -27,47 +26,41 @@ function checkOnline(url, callback) {
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
 
-    var frame = document.createElement('iframe');
-    frame.style.display = 'none';
-    var done = false;
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() { controller.abort(); }, 4500);
 
-    var timer = setTimeout(function() {
-        if (!done) {
-            done = true;
-            if(frame.parentNode) document.body.removeChild(frame);
-            callback(false);
-        }
-    }, 4500);
-
-    frame.onload = frame.onerror = function() {
-        if (!done) {
-            done = true;
-            clearTimeout(timer);
-            if(frame.parentNode) document.body.removeChild(frame);
+    fetch(testUrl, { mode: 'no-cors', signal: controller.signal })
+        .then(function() {
+            clearTimeout(timeoutId);
             callback(true);
-        }
-    };
-
-    frame.src = testUrl;
-    document.body.appendChild(frame);
+        })
+        .catch(function() {
+            clearTimeout(timeoutId);
+            callback(false);
+        });
 }
 
 function startMe() { 
-    var current_host = window.location.hostname;
+    var current_host = window.location.hostname.toLowerCase();
     var current_friendly = getFriendlyName(current_host);
+    var savedServer = Lampa.Storage.get('location_server', '-');
 
-    // ВИПРАВЛЕННЯ ЗАЦИКЛЕННЯ: якщо в URL є redirect=1, ми більше нікуди не перенаправляємо
-    if (window.location.search.indexOf('redirect=1') === -1) { 
-        var savedServer = Lampa.Storage.get('location_server');
-        if(savedServer && savedServer !== '-' && current_host !== savedServer) { 
-             // Виконуємо перехід лише один раз
-             window.location.href = 'http://' + savedServer + '?redirect=1'; 
-             return; // Зупиняємо виконання скрипта, бо ми йдемо на іншу сторінку
-        } 
-    } else {
-        // Очищуємо мітку вибору після успішного переходу, щоб не було петлі
-        Lampa.Storage.set('location_server','-');
-    } 
+    if (savedServer !== '-' && savedServer !== '') {
+        var target_host = savedServer.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
+        
+        if (current_host === target_host) {
+            Lampa.Storage.set('location_server', '-');
+        } else {
+            // ОНОВЛЕННЯ ВНУТРІШНЬОГО СЕРВЕРА ДОДАТКА
+            // Це ключовий момент для Android: міняємо адресу в самому додатку
+            Lampa.Storage.set('server_url', savedServer);
+            Lampa.Storage.set('location_server', '-');
+            
+            var target_url = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer;
+            window.location.href = target_url + (target_url.indexOf('?') > -1 ? '&' : '?') + 'redirect=1';
+            return;
+        }
+    }
 
     Lampa.SettingsApi.addComponent({ 
         component: 'location_redirect', 
@@ -113,23 +106,18 @@ function startMe() {
                 item.addClass('selector selector-item').css('cursor', 'pointer');
                 
                 item.on('hover:enter click', function() {
-                    // ПЕРЕВІРКА ДОСТУПНОСТІ ПЕРЕД ВИБОРОМ
-                    if (server_states[srv.url] === false) {
-                        Lampa.Noty.show('Сервер недоступний');
-                        return;
-                    }
                     Lampa.Storage.set('location_server', srv.url);
                     Lampa.Settings.update();
-                    Lampa.Noty.show('Вибрано: ' + srv.name + ', тепер натисніть кнопку: Змінити сервер.');
+                    Lampa.Noty.show('Вибрано: ' + srv.name + '. Натисніть "Змінити сервер".');
                 });
 
                 setTimeout(function() {
                     checkOnline(srv.url, function(isOk) {
-                        server_states[srv.url] = isOk; // Зберігаємо статус
+                        server_states[srv.url] = isOk;
                         var color = isOk ? '#2ecc71' : '#ff4c4c';
                         var isSelected = Lampa.Storage.get('location_server') === srv.url;
                         
-                        if(!isOk) item.css('opacity','0.4'); // Візуально приглушуємо недоступні
+                        if(!isOk) item.css('opacity','0.4');
                         else item.css('opacity','1');
 
                         item.find('.settings-param__name').html((isSelected ? '✓ ' : '') + srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
@@ -148,12 +136,10 @@ function startMe() {
             item.on('hover:enter click', function() {
                 var target = Lampa.Storage.get('location_server');
                 if (target && target !== '-') {
-                    // Фінальна перевірка перед перезавантаженням
-                    if (server_states[target] === false) {
-                        Lampa.Noty.show('Неможливо перейти: сервер недоступний');
-                    } else {
-                        window.location.href = 'http://' + target + '?redirect=1';
-                    }
+                    // Також оновлюємо перед переходом
+                    Lampa.Storage.set('server_url', target);
+                    var target_url = (target.indexOf('://') === -1 ? 'http://' : '') + target;
+                    window.location.href = target_url + (target_url.indexOf('?') > -1 ? '&' : '?') + 'redirect=1';
                 } else {
                     Lampa.Noty.show('Сервер не вибрано');
                 }
