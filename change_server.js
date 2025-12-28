@@ -19,18 +19,24 @@ function getFriendlyName(url) {
     return found ? found.name : 'Lampa - (' + host + ')';
 }
 
-// Покращена перевірка: без іконок, з урахуванням 404 та черговістю
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
     var domain = url.split('?')[0].replace(/\/$/, "");
     var testUrl = (domain.indexOf('://') === -1) ? window.location.protocol + '//' + domain : domain;
 
-    var controller = new AbortController();
-    var timeout = setTimeout(function() { controller.abort(); callback(false); }, 5000);
-
-    fetch(testUrl, { method: 'GET', signal: controller.signal, mode: 'no-cors', cache: 'no-cache' })
-        .then(function() { clearTimeout(timeout); callback(true); })
-        .catch(function() { clearTimeout(timeout); callback(false); });
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', testUrl, true);
+    // Нам байдуже на дані, нам головне чи сервер відгукнувся
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState > 1) { 
+            xhr.abort();
+            callback(true);
+        }
+    };
+    xhr.onerror = function() { callback(false); };
+    xhr.timeout = 4000;
+    xhr.ontimeout = function() { callback(false); };
+    xhr.send();
 }
 
 function startMe() { 
@@ -40,7 +46,7 @@ function startMe() {
     if (window.location.search != '?redirect=1') { 
         var savedServer = Lampa.Storage.get('location_server');
         if(savedServer && savedServer !== '-' && current_host !== savedServer) { 
-             window.location.href = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer + '?redirect=1'; 
+             window.location.href = 'http://' + savedServer + '?redirect=1'; 
         } 
     } else {
         Lampa.Storage.set('location_server','-');
@@ -52,7 +58,6 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // 1. ПОТОЧНИЙ СЕРВЕР (ЖОВТА НАЗВА + РИСКА В КОЛІР)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
@@ -61,11 +66,12 @@ function startMe() {
             item.removeClass('selector selector-item').css({'pointer-events': 'none'});
             checkOnline(current_host, function(isOk) {
                 var color = isOk ? '#2ecc71' : '#ff4c4c';
+                var status = isOk ? 'доступний' : 'недоступний';
                 item.find('.settings-param__name').html(
                     '<span style="opacity: 0.6;">Поточний сервер:</span><br><br>' + 
                     '<div>' +
                     '<span style="color:yellow; font-weight: bold; font-size: 1.2em;">' + current_friendly + '</span>' +
-                    ' <span style="color:' + color + '">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>' +
+                    ' <span style="color:' + color + '">- ' + status + '</span>' +
                     '</div>'
                 );
             });
@@ -82,7 +88,6 @@ function startMe() {
         }
     });
 
-    // 2. СПИСОК СЕРВЕРІВ (ЧЕРГОВА ПЕРЕВІРКА)
     servers.forEach(function(srv, index) {
         Lampa.SettingsApi.addParam({
             component: 'location_redirect',
@@ -96,19 +101,19 @@ function startMe() {
                     Lampa.Noty.show('Вибрано: ' + srv.name);
                 });
 
-                // Робимо затримку для кожного наступного сервера, щоб не блокував браузер
+                // Почергова перевірка для стабільності
                 setTimeout(function() {
                     checkOnline(srv.url, function(isOk) {
                         var color = isOk ? '#2ecc71' : '#ff4c4c';
                         var isSelected = Lampa.Storage.get('location_server') === srv.url;
-                        item.find('.settings-param__name').html((isSelected ? '✓ ' : '') + srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
+                        var mark = isSelected ? '<span style="color:#2ecc71">✓ </span>' : '';
+                        item.find('.settings-param__name').html(mark + srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
                     });
-                }, index * 500); 
+                }, index * 400);
             }
         });
     });
 
-    // 3. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'apply_reload', type: 'static' },
