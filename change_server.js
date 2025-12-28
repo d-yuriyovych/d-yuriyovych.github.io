@@ -82,8 +82,11 @@ function startMe() {
 
     // 3. СПИСОК СЕРВЕРІВ (КЛІКАБЕЛЬНІ ПУЛЬТОМ)
     var servers = [
-        { name: 'Lampac Koyeb', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
-        { name: 'lampa.mx', url: 'lampa.mx' }
+        { name: 'Lampa - (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
+        { name: 'Lampa - (MX)', url: 'lampa.mx' }, 
+        { name: 'Lampa - (NNMTV)', url: 'lam.nnmtv.pw' }, 
+        { name: 'Lampa - (VIP)', url: 'lampa.vip' },
+        { name: 'Prisma', url: 'prisma.ws/' }
     ];
 
     servers.forEach(function(srv) {
