@@ -113,14 +113,14 @@ function startMe() {
                 item.addClass('selector selector-item').css('cursor', 'pointer');
                 
                 item.on('hover:enter click', function() {
-                    // ПЕРЕВІРКА ДОСТУПНОСТІ ПЕРЕД Вибором
+                    // ПЕРЕВІРКА ДОСТУПНОСТІ ПЕРЕД ВИБОРОМ
                     if (server_states[srv.url] === false) {
                         Lampa.Noty.show('Сервер недоступний');
                         return;
                     }
                     Lampa.Storage.set('location_server', srv.url);
                     Lampa.Settings.update();
-                    Lampa.Noty.show('Вибрано: ' + srv.name ', тепер натисніть кнопку: Змінити сервер.');
+                    Lampa.Noty.show('Вибрано: ' + srv.name + ', тепер натисніть кнопку: Змінитисервер');
                 });
 
                 setTimeout(function() {
