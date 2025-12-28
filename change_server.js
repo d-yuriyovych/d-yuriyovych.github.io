@@ -1,7 +1,6 @@
 (function() { 'use strict'; Lampa.Platform.tv();
 var icon_server_redirect = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 13H3V11H21V13ZM21 7H3V5H21V7ZM21 19H3V17H21V19Z" fill="white"/></svg>';
 
-// Список ваших серверів
 var servers = [
     { name: 'Lampa - (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
     { name: 'Lampa - (MX)', url: 'lampa.mx' }, 
@@ -13,25 +12,39 @@ var servers = [
 function getFriendlyName(url) {
     if (!url) return 'Lampa';
     var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
-    
-    // Пошук назви у масиві
     var found = servers.find(function(s) { 
         var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
         return host === sUrl || host.indexOf(sUrl) !== -1 || sUrl.indexOf(host) !== -1;
     });
-    
     return found ? found.name : 'Lampa - (' + host + ')';
 }
 
+// Покращена перевірка: враховуємо 404 та помилки з'єднання
 function checkOnline(url, callback) {
-    if (url === '-' || url === '' || !url) return callback(true);
+    if (!url || url === '-') return callback(true);
     var domain = url.split('?')[0].replace(/\/$/, "");
-    var testUrl = (domain.indexOf('://') === -1) ? 'http://' + domain : domain;
-    var img = new Image();
-    img.onload = function() { callback(true); };
-    img.onerror = function() { callback(false); }; 
-    img.src = testUrl + '/favicon.ico?v=' + Math.random();
-    setTimeout(function() { if(!img.complete) { img.src = ''; callback(false); } }, 2000);
+    var testUrl = (domain.indexOf('://') === -1) ? window.location.protocol + '//' + domain : domain;
+
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() { controller.abort(); callback(false); }, 3500);
+
+    fetch(testUrl, { signal: controller.signal, cache: 'no-cache' })
+        .then(function(response) {
+            clearTimeout(timeoutId);
+            // Якщо статус 200-299 — сервер ОК. Якщо 404 або інше — недоступний.
+            if (response.ok) callback(true);
+            else callback(false);
+        })
+        .catch(function() {
+            clearTimeout(timeoutId);
+            // Якщо fetch заблоковано CORS, пробуємо метод через створення елемента script
+            // Це обхідний шлях для Smart TV/Android, щоб побачити чи "живий" хост
+            var script = document.createElement('script');
+            script.src = testUrl;
+            script.onload = function() { callback(true); document.body.removeChild(script); };
+            script.onerror = function() { callback(false); if(script.parentNode) document.body.removeChild(script); };
+            document.body.appendChild(script);
+        });
 }
 
 function startMe() { 
@@ -53,7 +66,6 @@ function startMe() {
         icon: icon_server_redirect 
     }); 
 
-    // 1. ПОТОЧНИЙ СЕРВЕР (ЖОВТА НАЗВА)
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'main_status', type: 'static' },
@@ -74,7 +86,6 @@ function startMe() {
         }
     });
 
-    // 2. ЗАГОЛОВОК
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'title_header', type: 'static' },
@@ -85,7 +96,6 @@ function startMe() {
         }
     });
 
-    // 3. СПИСОК СЕРВЕРІВ
     servers.forEach(function(srv) {
         Lampa.SettingsApi.addParam({
             component: 'location_redirect',
@@ -99,17 +109,17 @@ function startMe() {
                     Lampa.Noty.show('Вибрано: ' + srv.name);
                 });
 
-                var isSelected = Lampa.Storage.get('location_server') === srv.url;
-                var mark = isSelected ? '<span style="color:#2ecc71">✓ </span>' : '';
                 checkOnline(srv.url, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
-                    item.find('.settings-param__name').html(mark + srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + (isOk ? 'доступний' : 'недоступний') + '</span>');
+                    var statusText = isOk ? 'доступний' : 'недоступний';
+                    var isSelected = Lampa.Storage.get('location_server') === srv.url;
+                    var mark = isSelected ? '<span style="color:#2ecc71">✓ </span>' : '';
+                    item.find('.settings-param__name').html(mark + srv.name + ' <span style="color:' + color + '; font-size: 0.85em;">- ' + statusText + '</span>');
                 });
             }
         });
     });
 
-    // 4. КНОПКА ПЕРЕЗАВАНТАЖЕННЯ
     Lampa.SettingsApi.addParam({
         component: 'location_redirect',
         param: { name: 'apply_reload', type: 'static' },
