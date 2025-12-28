@@ -2,7 +2,7 @@
 var icon_server_redirect = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 13H3V11H21V13ZM21 7H3V5H21V7ZM21 19H3V17H21V19Z" fill="white"/></svg>';
 
 var servers = [
-    { name: 'Lampa - (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
+    { name: 'Lampa (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
     { name: 'Lampa (MX)', url: 'lampa.mx' }, 
     { name: 'Lampa (NNMTV)', url: 'lam.nnmtv.pw' }, 
     { name: 'Lampa (VIP)', url: 'lampa.vip' },
@@ -13,15 +13,14 @@ var server_states = {};
 
 function getFriendlyName(url) {
     if (!url) return 'Lampa';
-    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
+    var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
     var found = servers.find(function(s) { 
-        var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].toLowerCase();
-        return host === sUrl || host.indexOf(sUrl) !== -1 || sUrl.indexOf(host) !== -1;
+        var sUrl = s.url.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
+        return host === sUrl;
     });
     return found ? found.name : 'Lampa - (' + host + ')';
 }
 
-// Перевірка через fetch (надійніше за iframe)
 function checkOnline(url, callback) {
     if (!url || url === '-') return callback(true);
     var host = url.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
@@ -46,17 +45,16 @@ function checkOnline(url, callback) {
 }
 
 function startMe() { 
-    var current_host = window.location.hostname.toLowerCase();
+    var current_host = window.location.hostname.toLowerCase().replace(/\/$/, "");
     var current_friendly = getFriendlyName(current_host);
     var savedServer = Lampa.Storage.get('location_server', '-');
 
-    // ЛОГІКА РЕДІРЕКТУ (ВИПРАВЛЕНА)
+    // СТРОГА ПЕРЕВІРКА НА ЗАЦИКЛЕННЯ
     if (savedServer !== '-' && savedServer !== '') {
         var cleanSaved = savedServer.replace(/https?:\/\//, "").split('/')[0].toLowerCase().replace(/\/$/, "");
-        // Редірект тільки якщо ми НЕ на тому сервері, який збережено
         if (current_host !== cleanSaved) {
             if (window.location.search.indexOf('redirect=1') === -1) {
-                window.location.href = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer + '?redirect=1'; 
+                window.location.href = (savedServer.indexOf('://') === -1 ? 'http://' : '') + savedServer + (savedServer.indexOf('?') > -1 ? '&' : '?') + 'redirect=1'; 
                 return;
             }
         }
@@ -140,7 +138,7 @@ function startMe() {
             item.on('hover:enter click', function() {
                 var target = Lampa.Storage.get('location_server');
                 if (target && target !== '-') {
-                    window.location.href = (target.indexOf('://') === -1 ? 'http://' : '') + target + '?redirect=1';
+                    window.location.href = (target.indexOf('://') === -1 ? 'http://' : '') + target + (target.indexOf('?') > -1 ? '&' : '?') + 'redirect=1';
                 } else {
                     Lampa.Noty.show('Сервер не вибрано');
                 }
