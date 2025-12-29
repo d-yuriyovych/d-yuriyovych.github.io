@@ -15,40 +15,29 @@
         var selected_url = null;
         var modal = $(`
             <div class="server-switcher-modal" style="padding: 10px; min-width: 280px;">
-                <div style="margin-bottom: 10px; color: #aaa;">Оберіть робоче дзеркало:</div>
+                <div style="margin-bottom: 10px; color: #aaa;">Оберіть сервер:</div>
                 <div class="srv-list-container"></div>
                 <div class="sel-info" style="margin: 15px 0; text-align: center; color: #f1c40f; min-height: 1.2em;"></div>
                 <div class="selector button srv-btn-confirm" style="background-color: #3f51b5; color: white; text-align: center; padding: 12px; border-radius: 8px; width: 100%; box-sizing: border-box;">ПЕРЕЙТИ</div>
             </div>
         `);
 
-        // Перевірка через Image (найшвидша для статусів)
-        function checkStatus(url, el) {
-            var img = new Image();
-            img.onload = function() { $(el).text(' - Online').css('color', '#4caf50'); };
-            img.onerror = function() { $(el).text(' - Online').css('color', '#4caf50'); };
-            img.src = url + '/favicon.ico?' + Math.random();
-        }
-
         servers.forEach(function(s) {
-            var item = $(`<div class="selector srv-item-row" style="padding: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.07); border-radius: 6px; display: flex; justify-content: space-between; cursor: pointer;">
-                <span>${s.name}</span> <span class="s-stat-label" style="font-size: 0.8rem;">...</span>
+            var item = $(`<div class="selector srv-item-row" style="padding: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.1); border-radius: 6px; display: flex; justify-content: space-between; cursor: pointer;">
+                <span>${s.name}</span>
             </div>`);
 
             item.on('hover:enter click', function() {
-                modal.find('.srv-item-row').css('background', 'rgba(255,255,255,0.07)');
-                $(this).css('background', 'rgba(255,255,255,0.25)');
+                modal.find('.srv-item-row').css('background', 'rgba(255,255,255,0.1)');
+                $(this).css('background', 'rgba(255,255,255,0.3)');
                 selected_url = s.url;
                 modal.find('.sel-info').text('Вибрано: ' + s.name);
             });
-
             modal.find('.srv-list-container').append(item);
-            checkStatus(s.url, item.find('.s-stat-label'));
         });
 
         modal.find('.srv-btn-confirm').on('hover:enter click', function() {
             if (selected_url) window.location.href = selected_url;
-            else Lampa.Noty.show('Виберіть сервер');
         });
 
         Lampa.Modal.open({
@@ -57,49 +46,50 @@
             size: 'small',
             onBack: function() {
                 Lampa.Modal.close();
-                // Повертаємо керування попередньому контролеру
-                Lampa.Controller.toggle(Lampa.Controller.enabled().name);
+                // ПРИМУСОВЕ ПОВЕРНЕННЯ ФОКУСУ
+                setTimeout(function(){
+                    Lampa.Controller.toggle(Lampa.Controller.enabled().name || 'content');
+                }, 100);
             }
         });
     }
 
     function startPlugin() {
-        // --- Твоя логіка вставки пункту в налаштування ---
+        // РЕЄСТРАЦІЯ КОМПОНЕНТА В НАЛАШТУВАННЯХ
         Lampa.SettingsApi.addComponent({
             component: 'server_redirect_mod',
             name: 'Зміна сервера',
             icon: icon_svg
         });
 
+        // ДОДАВАННЯ ПУНКТУ ЯК ПРОСТОЇ КНОПКИ (БЕЗ ПАРАМЕТРІВ)
         Lampa.SettingsApi.addParam({
             component: 'server_redirect_mod',
-            param: { name: 'trigger', type: 'title' },
+            param: { name: 'any_trigger', type: 'title' },
             field: { name: 'Відкрити список дзеркал' },
             onRender: function(item) {
-                item.addClass('selector');
-                item.off('click').on('click', function() {
-                    openServerModal();
-                });
+                // Використовуємо setTimeout щоб Lampa встигла відрендерити елемент
+                setTimeout(function() {
+                    item.addClass('selector').off('click').on('click', function() {
+                        openServerModal();
+                    });
+                }, 10);
             }
         });
 
-        // --- Кнопки в інтерфейсі (Header + Menu) ---
+        // HEADER + MENU
         setInterval(function() {
             if (!$('.srv-head-btn').length && $('.head__actions').length) {
                 $('<div class="head__action selector srv-head-btn" style="margin-right:15px;">' + icon_svg + '</div>')
-                    .on('click', openServerModal).prependTo('.head__actions');
+                    .off('click').on('click', openServerModal).prependTo('.head__actions');
             }
             if (!$('.srv-menu-item').length && $('.menu__list').length) {
                 $('<li class="menu__item selector srv-menu-item"><div class="menu__ico">' + icon_svg + '</div><div class="menu__text">Сервери</div></li>')
-                    .on('click', openServerModal).appendTo('.menu__list');
+                    .off('click').on('click', openServerModal).appendTo('.menu__list');
             }
         }, 2000);
     }
 
     if (window.appready) startPlugin();
-    else {
-        Lampa.Listener.follow('app', function(e) {
-            if (e.type == 'ready') startPlugin();
-        });
-    }
+    else Lampa.Listener.follow('app', function(e) { if (e.type == 'ready') startPlugin(); });
 })();
