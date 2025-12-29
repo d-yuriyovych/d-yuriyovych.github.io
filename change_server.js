@@ -7,79 +7,47 @@
         { name: 'Prisma', url: 'http://prisma.ws' }
     ];
 
-    function checkStatus(url) {
-        return new Promise((resolve) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', url.replace(/\/$/, '') + '/favicon.ico', true);
-            xhr.timeout = 2000;
-            xhr.onreadystatechange = () => {
-                if (xhr.readyState === 4) {
-                    resolve(xhr.status >= 200 && xhr.status < 400 || xhr.status === 0);
-                }
-            };
-            xhr.onerror = () => resolve(false);
-            xhr.ontimeout = () => resolve(false);
-            xhr.send();
-        });
+    // Найнадійніший метод перевірки для Android
+    function pingServer(url, callback) {
+        const img = new Image();
+        const timer = setTimeout(() => {
+            img.src = "";
+            callback(false);
+        }, 3000);
+        
+        img.onload = () => { clearTimeout(timer); callback(true); };
+        img.onerror = () => { clearTimeout(timer); callback(true); }; // Навіть помилка означає, що сервер відповів
+        img.src = url.replace(/\/$/, '') + '/favicon.ico?' + Math.random();
     }
 
     function openServerManager() {
-        const currentUrl = Lampa.Storage.get('source_url') || 'lampa.mx';
+        // Отримуємо значення максимально надійно
+        const currentUrl = Lampa.Storage.get('source_url') || localStorage.getItem('source_url') || 'lampa.mx';
         const current = servers.find(s => s.url.includes(currentUrl)) || { name: 'Стандартний', url: currentUrl };
         
-        const menuItems = [];
-
-        // Заголовок поточного сервера (не вибирається)
-        menuItems.push({
-            title: 'Поточний сервер:',
-            header: true
-        });
-
-        menuItems.push({
-            title: '<span style="color: #ffca28">' + current.name + '</span> - <span class="st-curr">...</span>',
-            fixed: true
-        });
-
-        // Список серверів (Заголовок не вибирається)
-        menuItems.push({
-            title: 'Список серверів:',
-            header: true
-        });
+        const items = [];
+        items.push({ title: 'Поточний: ' + current.name, header: true });
+        items.push({ title: 'Статус: <span class="st-curr">перевірка...</span>', fixed: true });
+        items.push({ title: 'Виберіть новий сервер:', header: true });
 
         servers.forEach(server => {
-            menuItems.push({
+            items.push({
                 title: server.name + ' - <span class="st-' + server.name.replace(/\W/g, '') + '">...</span>',
                 server: server,
-                onSelect: (item) => {
-                    if (item.is_offline) {
-                        Lampa.Noty.show('Сервер недоступний!');
-                    } else {
-                        showConfirm(server);
-                    }
-                }
+                onSelect: () => showConfirm(server)
             });
         });
 
         Lampa.Select.show({
-            title: 'Вибір сервера',
-            items: menuItems,
+            title: 'Менеджер серверів',
+            items: items,
             onRender: (html) => {
-                // Оновлення статусів
-                checkStatus(current.url).then(online => {
-                    html.find('.st-curr').html(online ? '<span style="color: #4caf50">Online</span>' : '<span style="color: #f44336">Offline</span>');
+                pingServer(current.url, (ok) => {
+                    html.find('.st-curr').html(ok ? '<span style="color:#4caf50">Online</span>' : '<span style="color:#f44336">Offline</span>');
                 });
-
-                servers.forEach(server => {
-                    checkStatus(server.url).then(online => {
-                        const el = html.find('.st-' + server.name.replace(/\W/g, ''));
-                        el.html(online ? '<span style="color: #4caf50">Online</span>' : '<span style="color: #f44336">Offline</span>');
-                        if (!online) {
-                            const parent = el.closest('.selector');
-                            parent.css('opacity', '0.4');
-                            // Знаходимо об'єкт в масиві по імені через DOM атрибут або індекс
-                            const index = html.find('.selector').index(parent);
-                            if(menuItems[index]) menuItems[index].is_offline = true;
-                        }
+                servers.forEach(s => {
+                    pingServer(s.url, (ok) => {
+                        html.find('.st-' + s.name.replace(/\W/g, '')).html(ok ? '<span style="color:#4caf50">Online</span>' : '<span style="color:#f44336">Offline</span>');
                     });
                 });
             }
@@ -90,66 +58,67 @@
         Lampa.Select.show({
             title: 'Підтвердження',
             items: [
+                { title: 'Вибрано: ' + server.name, header: true },
+                { title: 'Натисніть кнопку для редиректу:', fixed: true },
                 {
-                    title: 'Вибрано: ' + server.name,
-                    header: true
-                },
-                {
-                    title: 'Для зміни натисніть кнопку нижче:',
-                    fixed: true
-                },
-                {
-                    title: 'ЗМІНИТИ СЕРВЕР (REDIRECT)',
+                    title: 'ЗМІНИТИ ТА ПЕРЕЗАПУСТИТИ',
                     onSelect: () => {
-                        let cleanUrl = server.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                        const cleanUrl = server.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                        
+                        // Записуємо всюди, куди можна
                         Lampa.Storage.set('source_url', cleanUrl);
-                        Lampa.Noty.show('Перемикання...');
-                        setTimeout(() => { location.reload(); }, 500);
+                        localStorage.setItem('source_url', cleanUrl);
+                        
+                        // Спеціальний хак для Android додатка
+                        if (window.Lampa && window.Lampa.Platform && window.Lampa.Platform.is('android')) {
+                            // Спроба викликати внутрішній метод Android, якщо він доступний
+                            try { Android.setSourceURL(cleanUrl); } catch(e) {}
+                        }
+
+                        Lampa.Noty.show('Сервер змінено. Перезавантаження...');
+                        setTimeout(() => { 
+                            if(window.app && window.app.exit) window.app.exit(); // Для деяких Android версій
+                            location.replace(location.origin + location.pathname); 
+                        }, 1000);
                     }
                 }
             ],
             onRender: (html) => {
-                // Фарбуємо кнопку редиректу
-                html.find('.selector').last().css({
-                    'background-color': '#ffca28',
-                    'color': '#000',
-                    'margin-top': '10px',
-                    'font-weight': 'bold'
-                });
+                html.find('.selector').last().css({'background-color': '#ffca28', 'color': '#000', 'font-weight': 'bold'});
             }
         });
     }
 
-    // Додавання в налаштування
-    function addSettings() {
-        Lampa.Settings.main().render().find('[data-name="more"]').after('<div class="settings-param selector" data-name="server_change" data-static="true"><div class="settings-param__name">Зміна сервера (Redirect)</div><div class="settings-param__value">Перейти до списку</div></div>');
-        
-        $('body').on('click', '[data-name="server_change"]', function() {
-            openServerManager();
+    function injectSettings() {
+        // Чекаємо поки налаштування завантажаться
+        Lampa.Listener.follow('settings', (e) => {
+            if (e.type === 'open' && e.name === 'main') {
+                setTimeout(() => {
+                    if (!$('.settings-param[data-name="server_change"]').length) {
+                        const btn = $('<div class="settings-param selector" data-name="server_change" data-static="true"><div class="settings-param__name">Зміна сервера (Redirect)</div><div class="settings-param__value">Відкрити меню</div></div>');
+                        btn.on('click', openServerManager);
+                        $('.settings__content').prepend(btn); // Додаємо на самий початок налаштувань
+                    }
+                }, 100);
+            }
         });
     }
 
-    // Додавання в бічне меню
     function addMenu() {
         if ($('.menu__list').length && !$('.menu__item[data-action="server_redirect"]').length) {
-            const item = $('<li class="menu__item selector" data-action="server_redirect">' +
-                '<div class="menu__ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 17l5-5-5-5M19.8 12H9M10 3H4v18h6"/></svg></div>' +
-                '<div class="menu__text">Зміна сервера</div>' +
-                '</li>');
-
+            const item = $('<li class="menu__item selector" data-action="server_redirect"><div class="menu__ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M16 17l5-5-5-5M19.8 12H9M10 3H4v18h6"/></svg></div><div class="menu__text">Зміна сервера</div></li>');
             item.on('hover:enter', openServerManager);
             $('.menu__list').append(item);
         }
     }
 
-    // Запуск
-    const pluginInit = () => {
-        addSettings();
+    const init = () => {
         addMenu();
-        // Повторна спроба через 3 секунди для меню (якщо воно завантажується довго)
-        setTimeout(addMenu, 3000);
+        injectSettings();
+        // Циклічна перевірка меню для Android
+        setInterval(addMenu, 5000);
     };
 
-    if (window.appready) pluginInit();
-    else Lampa.Listener.follow('app', (e) => { if (e.type === 'ready') pluginInit(); });
+    if (window.appready) init();
+    else Lampa.Listener.follow('app', (e) => { if (e.type === 'ready') init(); });
 })();
