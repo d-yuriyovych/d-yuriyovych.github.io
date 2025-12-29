@@ -4,21 +4,23 @@
 
     var icon_server_redirect = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 13H3V11H21V13ZM21 7H3V5H21V7ZM21 19H3V17H21V19Z" fill="white"/></svg>';
 
+    // ТУТ ЯВНО ПРОПИСАНІ ПРОТОКОЛИ (http або https)
     var servers = [
         { name: 'Lampa (Koyeb)', url: 'https://central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
-        { name: 'Lampa (MX)', url: 'lampa.mx' },
-        { name: 'Lampa (NNMTV)', url: 'lam.nnmtv.pw' },
-        { name: 'Lampa (VIP)', url: 'lampa.vip' },
-        { name: 'Prisma', url: 'prisma.ws' }
+        { name: 'Lampa (MX)', url: 'http://lampa.mx' }, 
+        { name: 'Lampa (NNMTV)', url: 'http://lam.nnmtv.pw' }, 
+        { name: 'Lampa (VIP)', url: 'https://lampa.vip' },
+        { name: 'Prisma', url: 'http://prisma.ws' }
     ];
 
     var states_cache = {};
     var selected_target = '';
 
-    // Допоміжна функція для правильного формування URL (додає https, якщо немає)
+    // Функція тепер підставляє http за замовчуванням, якщо протокол не вказано,
+    // але поважає https, якщо він є в адресі.
     function normalizeUrl(url) {
-        if (url.indexOf('http') === 0) return url;
-        return 'https://' + url;
+        if (url.indexOf('http://') === 0 || url.indexOf('https://') === 0) return url;
+        return 'http://' + url;
     }
 
     function getFriendlyName(url) {
@@ -32,15 +34,16 @@
     }
 
     function checkOnline(url, callback) {
+        // Нормалізуємо URL (додаємо http якщо нема) і прибираємо слеш в кінці
         var check_url = normalizeUrl(url).replace(/\/$/, "");
         var domain = check_url.replace(/https?:\/\//, "").split('/')[0];
 
         if (states_cache[domain] !== undefined) return callback(states_cache[domain]);
 
         var controller = new AbortController();
-        var timeoutId = setTimeout(function() { controller.abort(); }, 2000); // Таймаут 2 сек
+        var timeoutId = setTimeout(function() { controller.abort(); }, 2000); 
 
-        // Використовуємо fetch, як ти просив. mode: 'no-cors' важливий для перевірки чужих доменів
+        // fetch використовує повну адресу з правильним протоколом
         fetch(check_url + '/?t=' + Date.now(), { mode: 'no-cors', signal: controller.signal })
             .then(function() {
                 clearTimeout(timeoutId);
@@ -58,7 +61,6 @@
         var current_host = window.location.hostname;
         var current_friendly = getFriendlyName(current_host);
         
-        // Скидаємо вибір при вході в меню
         selected_target = ''; 
 
         Lampa.SettingsApi.addParam({
@@ -68,7 +70,6 @@
             onRender: function(item) {
                 item.removeClass('selector selector-item').css({'pointer-events': 'none'});
                 
-                // Перевірка поточного хоста
                 checkOnline(current_host, function(isOk) {
                     var color = isOk ? '#2ecc71' : '#ff4c4c';
                     item.find('.settings-param__name').html(
@@ -106,20 +107,18 @@
                     item.on('hover:enter click', function() {
                         var domain = srv.url.replace(/https?:\/\//, "").split('/')[0].replace(/\/$/, "");
                         
-                        // Якщо ми вже перевірили і він недоступний - попереджаємо, але даємо вибрати (раптом провайдер блокує пінг, а сайт працює)
                         if (states_cache[domain] === false) {
                             Lampa.Noty.show('Увага: Сервер може бути недоступний');
                         }
 
+                        // Зберігаємо повний URL з протоколом як є в масиві
                         selected_target = srv.url;
                         
-                        // Візуальне виділення
                         item.parent().find('.settings-param__name').each(function() {
                             $(this).html($(this).html().replace('✓ ', ''));
                         });
                         item.find('.settings-param__name').prepend('✓ ');
                         
-                        // Зберігаємо вибір, але перехід тільки по кнопці
                         Lampa.Noty.show('Вибрано: ' + srv.name);
                     });
                 }
@@ -132,29 +131,29 @@
             field: { name: 'Змінити сервер' },
             onRender: function(item) {
                 item.addClass('selector selector-item').on('hover:enter click', function() {
-                    // Перевірка: чи вибрано сервер
                     if (!selected_target) {
                         Lampa.Noty.show('Спочатку виберіть сервер зі списку!');
                         return;
                     }
 
+                    // Очищаємо URL для запису в пам'ять (без http/https), 
+                    // бо внутрішні механізми Лампи іноді дописують протокол самі, 
+                    // але для редиректу нам потрібен чистий протокол.
                     var clean = selected_target.replace(/https?:\/\//, "").replace(/\/$/, "");
                     
-                    // КРОК 1: Записуємо адресу в усі можливі сховища
+                    // Зберігаємо "чистий" домен в налаштування, щоб Лампа його підхопила при старті
                     Lampa.Storage.set('server_url', clean);
                     localStorage.setItem('server_url', clean);
-                    // Додатково для деяких версій Android клієнта
+                    // location_server зберігаємо повний, на всяк випадок
                     Lampa.Storage.set('location_server', selected_target); 
                     
                     Lampa.Noty.show('Виконується перехід на ' + selected_target + '...');
 
                     setTimeout(function(){
-                        // КРОК 2: Правильний редирект
-                        // Використовуємо HTTPS за замовчуванням, якщо не вказано інше
+                        // Тут важливо: window.location.href має отримати повний URL з протоколом
                         var final_url = normalizeUrl(selected_target);
                         
                         try {
-                            // Для Android Lampa
                             window.location.href = final_url;
                         } catch(e) {
                             window.location.reload();
@@ -166,7 +165,6 @@
         });
     }
 
-    // Запуск плагіна
     Lampa.Listener.follow('app', function(e) { 
         if(e.type == 'ready') {
             Lampa.SettingsApi.addComponent({ 
@@ -177,12 +175,9 @@
         }
     });
 
-    // Слухаємо відкриття налаштувань
     Lampa.Listener.follow('settings', function(e) {
         if(e.type == 'open' && e.name == 'location_redirect') {
-            // Очищаємо кеш статусів, щоб перевірка йшла КОЖНОГО разу при вході
             states_cache = {}; 
-            // Додаємо пункти меню (це запустить onRender і fetch)
             addSettingsItems();
         }
     });
