@@ -23,7 +23,7 @@ function startMe() {
 					 values: {
 						'-':'Текущий',
                         'lampa.byskaz.ru':'lampa.byskaz.ru',
-                        'Lampa (NNMTV)':'lam.nnmtv.pw', 
+                        'lam.nnmtv.pw':'lam.nnmtv.pw', 
 						'ua.byskaz.ru':'ua.byskaz.ru',
 						'lampa.mx':'lampa.mx'
                     },
