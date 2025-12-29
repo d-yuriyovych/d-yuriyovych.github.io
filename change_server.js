@@ -15,120 +15,124 @@
         return url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
     }
 
-    function ServerSwitcherComponent() {
+    // Функція відкриття модального вікна
+    function openServerModal() {
         var selected_url = null;
         var selected_name = null;
-        var layer;
+        
+        var currentHost = cleanUrl(window.location.host + window.location.pathname);
+        var current = servers.find(s => cleanUrl(s.url).includes(currentHost));
+        var currentName = current ? current.name : 'Custom';
 
-        function check(url, status_el, item_el) {
+        var modal = $(`
+            <div class="server-switcher-modal" style="padding: 20px; max-width: 500px; margin: 0 auto;">
+                <div style="margin-bottom: 10px; color: #aaa; font-size: 1.2rem;">Поточний сервер:</div>
+                <div style="margin-bottom: 20px; font-size: 1.4rem;">
+                    <span style="color: #f1c40f; font-weight: bold;">${currentName}</span>
+                    <span class="curr-stat" style="font-size: 1rem;"></span>
+                </div>
+                
+                <div style="margin-bottom: 10px; color: #aaa; font-size: 1.2rem;">Список серверів:</div>
+                <div class="srv-list-container"></div>
+                
+                <div class="sel-info" style="margin: 20px 0 10px; color: #fff; min-height: 1.5em; text-align: center;">Виберіть сервер</div>
+                <div class="selector button srv-btn-confirm" style="background-color: #3f51b5; color: white; text-align: center; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold;">ЗМІНИТИ СЕРВЕР</div>
+            </div>
+        `);
+
+        // Перевірка статусів
+        function checkStatus(url, el, parent) {
             var controller = new AbortController();
-            setTimeout(function() { controller.abort(); }, 4000);
+            setTimeout(() => controller.abort(), 4000);
             fetch(url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal })
-                .then(function() {
-                    status_el.innerText = ' - Online';
-                    status_el.style.color = '#4caf50';
+                .then(() => {
+                    $(el).text(' - Online').css('color', '#4caf50');
                 })
-                .catch(function() {
-                    status_el.innerText = ' - Offline';
-                    status_el.style.color = '#f44336';
-                    if(item_el) {
-                        $(item_el).removeClass('selector').css({opacity: 0.5, 'pointer-events': 'none'});
-                    }
+                .catch(() => {
+                    $(el).text(' - Offline').css('color', '#f44336');
+                    if(parent) $(parent).removeClass('selector').css({opacity: 0.4, 'pointer-events': 'none'});
                 });
         }
 
-        this.create = function () {
-            var html = $(`
-                <div class="settings-param module-settings">
-                    <div class="settings-param__head">Зміна сервера</div>
-                    <div class="settings-param__body">
-                        <div style="margin-bottom: 10px; color: #aaa;">Поточний сервер:</div>
-                        <div style="margin-bottom: 20px; font-size: 1.2em;">
-                            <span class="curr-name" style="color: #f1c40f; font-weight: bold;">Перевірка...</span>
-                            <span class="curr-stat"></span>
-                        </div>
-                        <div style="margin-bottom: 10px; color: #aaa;">Список серверів:</div>
-                        <div class="srv-list" style="margin-bottom: 20px;"></div>
-                        <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
-                            <div class="sel-info" style="margin-bottom: 10px; min-height: 20px; color: #fff;">Виберіть сервер зі списку</div>
-                            <div class="selector button srv-btn" style="background-color: #3f51b5; color: white; text-align: center; padding: 12px; border-radius: 5px; width: 100%; box-sizing: border-box;">ЗМІНИТИ СЕРВЕР</div>
-                        </div>
-                    </div>
+        checkStatus(window.location.href, modal.find('.curr-stat'));
+
+        // Рендер списку
+        servers.forEach(s => {
+            var item = $(`
+                <div class="selector srv-item-row" style="padding: 15px; margin-bottom: 10px; background: rgba(255,255,255,0.07); border-radius: 8px; display: flex; justify-content: space-between; cursor: pointer;">
+                    <span style="font-size: 1.1rem;">${s.name}</span>
+                    <span class="s-stat-label">Перевірка...</span>
                 </div>
             `);
 
-            layer = html;
-
-            var currentHost = cleanUrl(window.location.host + window.location.pathname);
-            var current = servers.find(s => cleanUrl(s.url).includes(currentHost));
-            layer.find('.curr-name').text(current ? current.name : 'Custom');
-            check(window.location.href, layer.find('.curr-stat')[0]);
-
-            servers.forEach(function(s) {
-                var item = $(`<div class="selector srv-item" style="padding: 12px 10px; margin-bottom: 8px; background: rgba(255,255,255,0.05); border-radius: 6px; display: flex; justify-content: space-between;">
-                    <span>${s.name}</span><span class="s-stat">...</span>
-                </div>`);
-
-                item.on('hover:enter click', function() {
-                    layer.find('.srv-item').css('background', 'rgba(255,255,255,0.05)');
-                    $(this).css('background', 'rgba(255,255,255,0.2)');
-                    selected_url = s.url;
-                    selected_name = s.name;
-                    layer.find('.sel-info').html('Вибрано: <b style="color:#f1c40f">' + s.name + '</b>');
-                });
-
-                layer.find('.srv-list').append(item);
-                check(s.url, item.find('.s-stat')[0], item[0]);
+            item.on('hover:enter click', function() {
+                modal.find('.srv-item-row').css('background', 'rgba(255,255,255,0.07)');
+                $(this).css('background', 'rgba(255,255,255,0.25)');
+                selected_url = s.url;
+                selected_name = s.name;
+                modal.find('.sel-info').html('Вибрано: <b style="color:#f1c40f">' + s.name + '</b>');
             });
 
-            layer.find('.srv-btn').on('hover:enter click', function() {
-                if (!selected_url) return Lampa.Noty.show('Виберіть сервер!');
-                Lampa.Select.show({
-                    title: 'Перехід',
-                    text: 'Змінити сервер на ' + selected_name + '?',
-                    items: [{title: 'Так', value: 'yes'}, {title: 'Ні', value: 'no'}],
-                    onSelect: function(a) {
-                        if (a.value === 'yes') window.location.href = selected_url;
-                        else Lampa.Controller.toggle('settings_component');
-                    },
-                    onBack: function() { Lampa.Controller.toggle('settings_component'); }
-                });
-            });
+            modal.find('.srv-list-container').append(item);
+            checkStatus(s.url, item.find('.s-stat-label'), item);
+        });
 
-            return layer;
-        };
+        // Кнопка підтвердження
+        modal.find('.srv-btn-confirm').on('hover:enter click', function() {
+            if (!selected_url) {
+                Lampa.Noty.show('Будь ласка, виберіть сервер!');
+                return;
+            }
+            Lampa.Noty.show('Перехід на ' + selected_name);
+            setTimeout(() => { window.location.href = selected_url; }, 800);
+        });
+
+        // Виклик модалки Lampa
+        Lampa.Modal.open({
+            title: 'Вибір сервера Lampa',
+            html: modal,
+            size: 'medium',
+            onBack: function() {
+                Lampa.Modal.close();
+                Lampa.Controller.toggle('content');
+            }
+        });
     }
 
-    function openSrv() {
-        Lampa.Component.add('srv_switcher_comp', ServerSwitcherComponent);
-        Lampa.Settings.create('srv_switcher_comp');
-    }
-
-    function init() {
-        // Монітор кнопок
+    // === ПРИМУСОВИЙ МОНІТОРИНГ КНОПОК ===
+    function injectButtons() {
         setInterval(function() {
-            // Header
-            var head = $('.head .head__actions');
-            if (head.length && !head.find('.srv-head').length) {
-                $(`<div class="head__action selector srv-head" style="margin-right:15px">${icon_svg}</div>`)
-                    .on('hover:enter click', openSrv).insertBefore(head.find('.head__action--settings').length ? head.find('.head__action--settings') : head.firstChild);
+            // 1. Верхня шапка (Header)
+            var head = $('.head__actions');
+            if (head.length && !head.find('.srv-head-btn').length) {
+                var btn = $('<div class="head__action selector srv-head-btn" style="margin-right:15px; cursor: pointer;">' + icon_svg + '</div>');
+                btn.on('click hover:enter', openServerModal);
+                head.prepend(btn);
             }
-            // Меню
-            var menu = $('.menu .menu__list');
-            if (menu.length && !menu.find('.srv-menu').length) {
-                $(`<li class="menu__item selector srv-menu"><div class="menu__ico">${icon_svg}</div><div class="menu__text">Сервери</div></li>`)
-                    .on('hover:enter click', openSrv).appendTo(menu);
+
+            // 2. Ліве меню
+            var menu = $('.menu__list');
+            if (menu.length && !menu.find('.srv-menu-item').length) {
+                var menuItem = $('<li class="menu__item selector srv-menu-item"><div class="menu__ico">' + icon_svg + '</div><div class="menu__text">Сервери</div></li>');
+                menuItem.on('click hover:enter', openServerModal);
+                menu.append(menuItem);
             }
-            // Налаштування (якщо відкриті)
-            var setts = $('.settings__layer');
-            if (setts.length && !setts.find('.srv-sett').length) {
-                $(`<div class="settings__item selector srv-sett"><div class="settings__item-icon">${icon_svg}</div><div class="settings__item-name">Зміна сервера</div></div>`)
-                    .on('hover:enter click', openSrv).prependTo(setts);
+
+            // 3. Меню Налаштувань
+            var settings = $('.settings__layer');
+            if (settings.length && !settings.find('.srv-settings-item').length) {
+                var settItem = $('<div class="settings__item selector srv-settings-item"><div class="settings__item-icon">' + icon_svg + '</div><div class="settings__item-name">Зміна сервера</div></div>');
+                settItem.on('click hover:enter', openServerModal);
+                settings.prepend(settItem);
             }
-        }, 2000);
+        }, 1500);
     }
 
-    if (window.Lampa) init();
-    else window.addEventListener('lampa_init', init);
+    // Запуск
+    if (window.Lampa) {
+        injectButtons();
+    } else {
+        window.addEventListener('lampa_init', injectButtons);
+    }
 
 })();
