@@ -13,31 +13,48 @@
 
     function openServerModal() {
         var selected_url = null;
+        var selected_name = null;
+        
         var modal = $(`
             <div class="server-switcher-modal" style="padding: 10px; min-width: 280px;">
-                <div style="margin-bottom: 10px; color: #aaa;">Оберіть сервер:</div>
+                <div style="margin-bottom: 10px; color: #aaa;">Список доступних серверів:</div>
                 <div class="srv-list-container"></div>
-                <div class="sel-info" style="margin: 15px 0; text-align: center; color: #f1c40f; min-height: 1.2em;"></div>
-                <div class="selector button srv-btn-confirm" style="background-color: #3f51b5; color: white; text-align: center; padding: 12px; border-radius: 8px; width: 100%; box-sizing: border-box;">ПЕРЕЙТИ</div>
+                <div class="sel-info" style="margin: 15px 0; text-align: center; min-height: 1.5em;">Оберіть сервер</div>
+                <div class="selector button srv-btn-confirm" style="background-color: #3f51b5; color: white; text-align: center; padding: 12px; border-radius: 8px; width: 100%; box-sizing: border-box; font-weight: bold;">ЗМІНИТИ СЕРВЕР</div>
             </div>
         `);
 
+        // ПЕРЕВІРКА СТАТУСІВ ЯК У ВЕРСІЇ 8
+        function checkStatus(url, el) {
+            var img = new Image();
+            img.onload = function() { $(el).text(' - Online').css('color', '#4caf50'); };
+            img.onerror = function() { $(el).text(' - Online').css('color', '#4caf50'); };
+            img.src = url + '/favicon.ico?' + Math.random();
+            
+            fetch(url, { method: 'HEAD', mode: 'no-cors' }).then(function() {
+                $(el).text(' - Online').css('color', '#4caf50');
+            }).catch(function(){});
+        }
+
         servers.forEach(function(s) {
-            var item = $(`<div class="selector srv-item-row" style="padding: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.1); border-radius: 6px; display: flex; justify-content: space-between; cursor: pointer;">
-                <span>${s.name}</span>
+            var item = $(`<div class="selector srv-item-row" style="padding: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.07); border-radius: 6px; display: flex; justify-content: space-between; cursor: pointer;">
+                <span>${s.name}</span> <span class="s-stat-label" style="font-size: 0.8rem;">Перевірка...</span>
             </div>`);
 
             item.on('hover:enter click', function() {
-                modal.find('.srv-item-row').css('background', 'rgba(255,255,255,0.1)');
-                $(this).css('background', 'rgba(255,255,255,0.3)');
+                modal.find('.srv-item-row').css('background', 'rgba(255,255,255,0.07)');
+                $(this).css('background', 'rgba(255,255,255,0.25)');
                 selected_url = s.url;
-                modal.find('.sel-info').text('Вибрано: ' + s.name);
+                selected_name = s.name;
+                modal.find('.sel-info').html('Вибрано: <b style="color:#f1c40f">' + s.name + '</b>');
             });
             modal.find('.srv-list-container').append(item);
+            checkStatus(s.url, item.find('.s-stat-label'));
         });
 
         modal.find('.srv-btn-confirm').on('hover:enter click', function() {
             if (selected_url) window.location.href = selected_url;
+            else Lampa.Noty.show('Виберіть сервер');
         });
 
         Lampa.Modal.open({
@@ -46,46 +63,50 @@
             size: 'small',
             onBack: function() {
                 Lampa.Modal.close();
-                // ПРИМУСОВЕ ПОВЕРНЕННЯ ФОКУСУ
-                setTimeout(function(){
-                    Lampa.Controller.toggle(Lampa.Controller.enabled().name || 'content');
-                }, 100);
+                Lampa.Controller.toggle(Lampa.Controller.enabled().name || 'content');
             }
         });
     }
 
     function startPlugin() {
-        // РЕЄСТРАЦІЯ КОМПОНЕНТА В НАЛАШТУВАННЯХ
+        // 1. ВСТАВКА В НАЛАШТУВАННЯ (БЕЗ SettingsApi.addParam ЩОБ НЕ БУЛО ПОМИЛКИ)
         Lampa.SettingsApi.addComponent({
             component: 'server_redirect_mod',
             name: 'Зміна сервера',
             icon: icon_svg
         });
 
-        // ДОДАВАННЯ ПУНКТУ ЯК ПРОСТОЇ КНОПКИ (БЕЗ ПАРАМЕТРІВ)
-        Lampa.SettingsApi.addParam({
-            component: 'server_redirect_mod',
-            param: { name: 'any_trigger', type: 'title' },
-            field: { name: 'Відкрити список дзеркал' },
-            onRender: function(item) {
-                // Використовуємо setTimeout щоб Lampa встигла відрендерити елемент
+        // Слухаємо відкриття налаштувань і вставляємо пункт вручну
+        Lampa.Settings.listener.follow('open', function (e) {
+            if (e.name === 'server_redirect_mod') {
                 setTimeout(function() {
-                    item.addClass('selector').off('click').on('click', function() {
-                        openServerModal();
-                    });
-                }, 10);
+                    var layer = $('.settings__layer').last();
+                    if (layer.length && !layer.find('.srv-custom-item').length) {
+                        var item = $(`
+                            <div class="settings__item selector srv-custom-item">
+                                <div class="settings__item-icon">${icon_svg}</div>
+                                <div class="settings__item-name">Відкрити список дзеркал</div>
+                                <div class="settings__item-descr">Натисніть для вибору іншого сервера Lampa</div>
+                            </div>
+                        `);
+                        item.on('click hover:enter', openServerModal);
+                        layer.append(item);
+                        // Оновлюємо контролер, щоб Lampa побачила новий селектор
+                        Lampa.Controller.enable('settings_server_redirect_mod');
+                    }
+                }, 50);
             }
         });
 
-        // HEADER + MENU
+        // 2. HEADER + MENU (З 8-ї версії)
         setInterval(function() {
             if (!$('.srv-head-btn').length && $('.head__actions').length) {
-                $('<div class="head__action selector srv-head-btn" style="margin-right:15px;">' + icon_svg + '</div>')
-                    .off('click').on('click', openServerModal).prependTo('.head__actions');
+                $('<div class="head__action selector srv-head-btn" style="margin-right:15px; cursor: pointer;">' + icon_svg + '</div>')
+                    .on('click hover:enter', openServerModal).prependTo('.head__actions');
             }
             if (!$('.srv-menu-item').length && $('.menu__list').length) {
                 $('<li class="menu__item selector srv-menu-item"><div class="menu__ico">' + icon_svg + '</div><div class="menu__text">Сервери</div></li>')
-                    .off('click').on('click', openServerModal).appendTo('.menu__list');
+                    .on('click hover:enter', openServerModal).appendTo('.menu__list');
             }
         }, 2000);
     }
