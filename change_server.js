@@ -15,7 +15,6 @@
         return url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
     }
 
-    // Функція відкриття модального вікна
     function openServerModal() {
         var selected_url = null;
         var selected_name = null;
@@ -25,29 +24,21 @@
         var currentName = current ? current.name : 'Custom';
 
         var modal = $(`
-            <div class="server-switcher-modal" style="padding: 20px; max-width: 500px; margin: 0 auto;">
-                <div style="margin-bottom: 10px; color: #aaa; font-size: 1.2rem;">Поточний сервер:</div>
-                <div style="margin-bottom: 20px; font-size: 1.4rem;">
-                    <span style="color: #f1c40f; font-weight: bold;">${currentName}</span>
-                    <span class="curr-stat" style="font-size: 1rem;"></span>
+            <div class="server-switcher-modal" style="padding: 10px; min-width: 280px;">
+                <div style="margin-bottom: 5px; color: #aaa; font-size: 1rem;">Поточний сервер:</div>
+                <div style="margin-bottom: 15px; font-size: 1.2rem; color: #f1c40f; font-weight: bold;">
+                    ${currentName} <span class="curr-stat" style="font-size: 0.8rem; font-weight: normal;"></span>
                 </div>
-                
-                <div style="margin-bottom: 10px; color: #aaa; font-size: 1.2rem;">Список серверів:</div>
-                <div class="srv-list-container"></div>
-                
-                <div class="sel-info" style="margin: 20px 0 10px; color: #fff; min-height: 1.5em; text-align: center;">Виберіть сервер</div>
-                <div class="selector button srv-btn-confirm" style="background-color: #3f51b5; color: white; text-align: center; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold;">ЗМІНИТИ СЕРВЕР</div>
+                <div style="margin-bottom: 10px; color: #aaa; font-size: 1rem;">Список серверів:</div>
+                <div class="srv-list-container" style="max-height: 50vh; overflow-y: auto;"></div>
+                <div class="sel-info" style="margin: 15px 0 10px; color: #fff; text-align: center; font-size: 0.9rem;">Оберіть сервер</div>
+                <div class="selector button srv-btn-confirm" style="background-color: #3f51b5; color: white; text-align: center; padding: 12px; border-radius: 8px; font-weight: bold;">ЗМІНИТИ СЕРВЕР</div>
             </div>
         `);
 
-        // Перевірка статусів
         function checkStatus(url, el, parent) {
-            var controller = new AbortController();
-            setTimeout(() => controller.abort(), 4000);
-            fetch(url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal })
-                .then(() => {
-                    $(el).text(' - Online').css('color', '#4caf50');
-                })
+            fetch(url, { method: 'HEAD', mode: 'no-cors' })
+                .then(() => $(el).text(' - Online').css('color', '#4caf50'))
                 .catch(() => {
                     $(el).text(' - Offline').css('color', '#f44336');
                     if(parent) $(parent).removeClass('selector').css({opacity: 0.4, 'pointer-events': 'none'});
@@ -56,15 +47,12 @@
 
         checkStatus(window.location.href, modal.find('.curr-stat'));
 
-        // Рендер списку
         servers.forEach(s => {
             var item = $(`
-                <div class="selector srv-item-row" style="padding: 15px; margin-bottom: 10px; background: rgba(255,255,255,0.07); border-radius: 8px; display: flex; justify-content: space-between; cursor: pointer;">
-                    <span style="font-size: 1.1rem;">${s.name}</span>
-                    <span class="s-stat-label">Перевірка...</span>
+                <div class="selector srv-item-row" style="padding: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.07); border-radius: 6px; display: flex; justify-content: space-between;">
+                    <span>${s.name}</span> <span class="s-stat-label" style="font-size: 0.8rem;">...</span>
                 </div>
             `);
-
             item.on('hover:enter click', function() {
                 modal.find('.srv-item-row').css('background', 'rgba(255,255,255,0.07)');
                 $(this).css('background', 'rgba(255,255,255,0.25)');
@@ -72,67 +60,53 @@
                 selected_name = s.name;
                 modal.find('.sel-info').html('Вибрано: <b style="color:#f1c40f">' + s.name + '</b>');
             });
-
             modal.find('.srv-list-container').append(item);
             checkStatus(s.url, item.find('.s-stat-label'), item);
         });
 
-        // Кнопка підтвердження
         modal.find('.srv-btn-confirm').on('hover:enter click', function() {
-            if (!selected_url) {
-                Lampa.Noty.show('Будь ласка, виберіть сервер!');
-                return;
-            }
-            Lampa.Noty.show('Перехід на ' + selected_name);
-            setTimeout(() => { window.location.href = selected_url; }, 800);
+            if (!selected_url) return Lampa.Noty.show('Оберіть сервер');
+            window.location.href = selected_url;
         });
 
-        // Виклик модалки Lampa
         Lampa.Modal.open({
-            title: 'Вибір сервера Lampa',
+            title: 'Вибір сервера',
             html: modal,
-            size: 'medium',
+            size: 'small',
             onBack: function() {
                 Lampa.Modal.close();
-                Lampa.Controller.toggle('content');
+                // Повертаємо фокус туди, звідки прийшли
+                Lampa.Controller.toggle(Lampa.Controller.enabled().name);
             }
         });
     }
 
-    // === ПРИМУСОВИЙ МОНІТОРИНГ КНОПОК ===
-    function injectButtons() {
+    function init() {
         setInterval(function() {
-            // 1. Верхня шапка (Header)
+            // 1. Header
             var head = $('.head__actions');
             if (head.length && !head.find('.srv-head-btn').length) {
-                var btn = $('<div class="head__action selector srv-head-btn" style="margin-right:15px; cursor: pointer;">' + icon_svg + '</div>');
-                btn.on('click hover:enter', openServerModal);
-                head.prepend(btn);
+                $('<div class="head__action selector srv-head-btn">' + icon_svg + '</div>')
+                    .on('click', openServerModal).prependTo(head);
             }
 
-            // 2. Ліве меню
+            // 2. Меню зліва
             var menu = $('.menu__list');
             if (menu.length && !menu.find('.srv-menu-item').length) {
-                var menuItem = $('<li class="menu__item selector srv-menu-item"><div class="menu__ico">' + icon_svg + '</div><div class="menu__text">Сервери</div></li>');
-                menuItem.on('click hover:enter', openServerModal);
-                menu.append(menuItem);
+                $('<li class="menu__item selector srv-menu-item"><div class="menu__ico">' + icon_svg + '</div><div class="menu__text">Сервери</div></li>')
+                    .on('click', openServerModal).appendTo(menu);
             }
 
-            // 3. Меню Налаштувань
-            var settings = $('.settings__layer');
+            // 3. Налаштування (виправлено)
+            var settings = $('.settings__content .settings__layer');
             if (settings.length && !settings.find('.srv-settings-item').length) {
                 var settItem = $('<div class="settings__item selector srv-settings-item"><div class="settings__item-icon">' + icon_svg + '</div><div class="settings__item-name">Зміна сервера</div></div>');
-                settItem.on('click hover:enter', openServerModal);
+                settItem.on('click', openServerModal);
                 settings.prepend(settItem);
             }
-        }, 1500);
+        }, 2000);
     }
 
-    // Запуск
-    if (window.Lampa) {
-        injectButtons();
-    } else {
-        window.addEventListener('lampa_init', injectButtons);
-    }
-
+    if (window.Lampa) init();
+    else window.addEventListener('lampa_init', init);
 })();
