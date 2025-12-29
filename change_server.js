@@ -7,128 +7,144 @@
         { name: 'Prisma', url: 'http://prisma.ws' }
     ];
 
-    // Надійна перевірка статусу через XHR (працює з http/https краще)
-    function checkStatus(url, callback) {
-        let xhr = new XMLHttpRequest();
-        xhr.open('GET', url.replace(/\/$/, '') + '/favicon.ico', true);
-        xhr.timeout = 3000;
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-                // Якщо статус 0 - це може бути CORS помилка, але сервер відповів (живий)
-                // Якщо статус 200-399 - точно живий
-                callback(xhr.status >= 200 && xhr.status < 400 || xhr.status === 0);
-            }
-        };
-        xhr.onerror = function() { callback(false); };
-        xhr.ontimeout = function() { callback(false); };
-        xhr.send();
+    function checkStatus(url) {
+        return new Promise((resolve) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', url.replace(/\/$/, '') + '/favicon.ico', true);
+            xhr.timeout = 2500;
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState === 4) {
+                    resolve(xhr.status >= 200 && xhr.status < 400 || xhr.status === 0);
+                }
+            };
+            xhr.onerror = () => resolve(false);
+            xhr.ontimeout = () => resolve(false);
+            xhr.send();
+        });
     }
 
     function startPlugin() {
-        // Створюємо компонент
         Lampa.Component.add('server_manager', function (object) {
-            let comp = new Lampa.Interaction();
-            let selectedServer = null;
-
             this.create = function () {
-                this.build();
-            };
+                const currentUrl = Lampa.Storage.get('source_url') || 'lampa.mx';
+                const current = servers.find(s => s.url.includes(currentUrl)) || { name: 'Стандартний', url: currentUrl };
+                
+                const menuItems = [];
 
-            this.build = function() {
-                comp.clear();
-                let currentUrl = Lampa.Storage.get('source_url') || 'lampa.mx';
-                let currentServer = servers.find(s => s.url.includes(currentUrl)) || { name: 'Стандартний', url: currentUrl };
-
-                comp.append({ title: 'Поточний сервер:', type: 'caption' });
-
-                let currentItem = comp.append({
-                    title: '<span style="color: #ffca28">' + currentServer.name + '</span> - <span class="st-curr">...</span>'
+                // 1. Поточний сервер (Заголовок та статус)
+                menuItems.push({
+                    title: 'Поточний сервер:',
+                    header: true
                 });
 
-                checkStatus(currentServer.url, (online) => {
-                    currentItem.find('.st-curr').html(online ? '<span style="color: #4caf50">Online</span>' : '<span style="color: #f44336">Offline</span>');
-                });
+                const currentItem = {
+                    title: '<span style="color: #ffca28">' + current.name + '</span> - <span class="st-curr">зачекайте...</span>',
+                    fixed: true
+                };
+                menuItems.push(currentItem);
 
-                comp.append({ title: 'Список серверів:', type: 'caption' });
+                // 2. Список для вибору
+                menuItems.push({
+                    title: 'Список серверів:',
+                    header: true
+                });
 
                 servers.forEach(server => {
-                    let item = comp.append({
+                    menuItems.push({
                         title: server.name + ' - <span class="st-' + server.name.replace(/\W/g, '') + '">...</span>',
-                        onSelect: () => {
-                            if (item.hasClass('is-offline')) {
-                                Lampa.Noty.show('Сервер недоступний!');
+                        server: server,
+                        onSelect: (item) => {
+                            if (item.offline) {
+                                Lampa.Noty.show('Цей сервер зараз недоступний');
                             } else {
-                                selectedServer = server;
-                                this.updateInfo();
+                                showConfirmMenu(item.server);
                             }
                         }
                     });
-
-                    checkStatus(server.url, (online) => {
-                        item.find('.st-' + server.name.replace(/\W/g, '')).html(online ? '<span style="color: #4caf50">Online</span>' : '<span style="color: #f44336">Offline</span>');
-                        if (!online) {
-                            item.addClass('is-offline').css('opacity', '0.4');
-                        }
-                    });
                 });
 
-                comp.append({ title: 'Дія:', type: 'caption' });
-                this.infoBlock = comp.append({ title: 'Виберіть робочий сервер', type: 'text' });
+                // Виклик стандартного меню Lampa
+                Lampa.Select.show({
+                    title: 'Менеджер серверів',
+                    items: menuItems,
+                    onRender: (html) => {
+                        // Перевірка статусів після відмальовки
+                        checkStatus(current.url).then(online => {
+                            html.find('.st-curr').html(online ? '<span style="color: #4caf50">Online</span>' : '<span style="color: #f44336">Offline</span>');
+                        });
 
-                this.btn = comp.append({
-                    title: 'ЗМІНИТИ СЕРВЕР',
-                    onSelect: () => {
-                        if (selectedServer) {
-                            let cleanUrl = selectedServer.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
-                            Lampa.Storage.set('source_url', cleanUrl);
-                            Lampa.Noty.show('Змінено на ' + selectedServer.name);
-                            setTimeout(() => { location.reload(); }, 1200);
-                        }
+                        servers.forEach(server => {
+                            checkStatus(server.url).then(online => {
+                                const el = html.find('.st-' + server.name.replace(/\W/g, ''));
+                                el.html(online ? '<span style="color: #4caf50">Online</span>' : '<span style="color: #f44336">Offline</span>');
+                                if (!online) {
+                                    el.closest('.selector').css('opacity', '0.4').addClass('is-offline');
+                                    const item = menuItems.find(i => i.server === server);
+                                    if(item) item.offline = true;
+                                }
+                            });
+                        });
+                    },
+                    onBack: () => {
+                        Lampa.Activity.backward();
                     }
                 });
-                this.btn.hide();
             };
 
-            this.updateInfo = function() {
-                this.infoBlock.find('.simple-button__title').text('Вибрано: ' + selectedServer.name + '. Натисніть кнопку нижче.');
-                this.btn.show();
-                this.btn.css({'background-color': '#ffca28', 'color': '#000'});
-            };
+            function showConfirmMenu(server) {
+                Lampa.Select.show({
+                    title: 'Підтвердження',
+                    items: [
+                        {
+                            title: 'Вибрано: ' + server.name,
+                            header: true
+                        },
+                        {
+                            title: 'Що робити далі?',
+                            description: 'Натисніть кнопку нижче для редиректу',
+                            fixed: true
+                        },
+                        {
+                            title: 'ЗМІНИТИ СЕРВЕР ТА ПЕРЕЗАВАНТАЖИТИ',
+                            style: 'background-color: #ffca28; color: #000; font-weight: bold;',
+                            onSelect: () => {
+                                let cleanUrl = server.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                                Lampa.Storage.set('source_url', cleanUrl);
+                                Lampa.Noty.show('Сервер змінено на ' + server.name);
+                                setTimeout(() => { location.reload(); }, 1000);
+                            }
+                        }
+                    ],
+                    onBack: () => {
+                        Lampa.Activity.push({ component: 'server_manager' });
+                    }
+                });
+            }
 
-            this.render = function () { return comp.render(); };
+            this.render = function () { return ''; };
         });
 
-        // Додаємо в Налаштування (найбільш стабільний шлях для Android)
-        Lampa.Settings.main().render().find('[data-name="more"]').after('<div class="settings-param selector" data-name="server_change" data-static="true"><div class="settings-param__name">Зміна сервера (Redirect)</div><div class="settings-param__value">Вибір джерела</div></div>');
-        
-        $('body').on('click', '[data-name="server_change"]', function() {
-            Lampa.Activity.push({
-                url: '',
-                title: 'Сервери',
-                component: 'server_manager',
-                page: 1
-            });
-        });
-
-        // Спроба додати в бічне меню через невелику затримку
-        setTimeout(() => {
+        // Додавання пункту в меню
+        const addBtn = () => {
             if ($('.menu__list').length && !$('.menu__item[data-action="server_manager"]').length) {
-                let menu_item = $('<li class="menu__item selector" data-action="server_manager">' +
-                    '<div class="menu__ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M19 11l-7-7-7 7m14 6l-7-7-7 7"/></svg></div>' +
+                const item = $('<li class="menu__item selector" data-action="server_manager">' +
+                    '<div class="menu__ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20M2 12h20"/></svg></div>' +
                     '<div class="menu__text">Зміна сервера</div>' +
                     '</li>');
 
-                menu_item.on('hover:enter', () => {
+                item.on('hover:enter', () => {
                     Lampa.Activity.push({
-                        url: '',
                         title: 'Сервери',
                         component: 'server_manager',
                         page: 1
                     });
                 });
-                $('.menu__list').append(menu_item);
+                $('.menu__list').append(item);
             }
-        }, 2000);
+        };
+
+        Lampa.Listener.follow('app', (e) => { if (e.type === 'ready') addBtn(); });
+        addBtn();
     }
 
     if (window.appready) startPlugin();
