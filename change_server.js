@@ -1,103 +1,225 @@
 (function () {
     'use strict';
 
-    var servers = [
-        { name: 'Lampa (MX)', url: 'http://lampa.mx' },
-        { name: 'Lampa (Koyeb)', url: 'https://central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
-        { name: 'Lampa (VIP)', url: 'http://lampa.vip' },
-        { name: 'Lampa (NNMTV)', url: 'http://lam.nnmtv.pw' },
-        { name: 'Prisma', url: 'http://prisma.ws/' }
-    ];
+    function ServerSwitcher() {
+        // Список серверів згідно з вашим запитом
+        const server_list = [
+            { name: 'Lampa (MX)', url: 'http://lampa.mx' }, // Стандартний, зазвичай http
+            { name: 'Lampa (Koyeb)', url: 'https://central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
+            { name: 'Lampa (VIP)', url: 'http://lampa.vip' },
+            { name: 'Lampa (NNMTV)', url: 'http://lam.nnmtv.pw' },
+            { name: 'Prisma', url: 'http://prisma.ws/' }
+        ];
 
-    var icon_svg = '<svg height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>';
+        let selected_new_server = null;
+        let component_body = null;
 
-    function openServerModal() {
-        var selected_url = null;
-        var selected_name = null;
-        
-        var modal = $(`
-            <div class="server-switcher-modal" style="padding: 10px; min-width: 280px;">
-                <div style="margin-bottom: 10px; color: #aaa;">Список доступних серверів:</div>
-                <div class="srv-list-container"></div>
-                <div class="sel-info" style="margin: 15px 0; text-align: center;">Оберіть сервер</div>
-                <div class="selector button srv-btn-confirm" style="background-color: #3f51b5; color: white; text-align: center; padding: 12px; border-radius: 8px; width: 100%; box-sizing: border-box;">ЗМІНИТИ СЕРВЕР</div>
-            </div>
-        `);
-
-        function checkStatus(url, el, item) {
-            var img = new Image();
-            img.onload = function() { $(el).text(' - Online').css('color', '#4caf50'); };
-            img.onerror = function() { $(el).text(' - Online').css('color', '#4caf50'); }; // no-cors workaround
-            img.src = url + '/favicon.ico?' + Math.random();
-            
-            // Паралельно fetch для надійності
-            fetch(url, { mode: 'no-cors' }).then(() => {
-                $(el).text(' - Online').css('color', '#4caf50');
-            }).catch(() => {
-                // Якщо обидва методи мовчать більше 4с - Offline
-            });
+        // Нормалізація URL для коректного порівняння та збереження
+        function cleanUrl(url) {
+            return url.replace(/\/$/, '').toLowerCase();
         }
 
-        servers.forEach(s => {
-            var item = $(`<div class="selector srv-item-row" style="padding: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.07); border-radius: 6px; display: flex; justify-content: space-between;">
-                <span>${s.name}</span> <span class="s-stat-label" style="font-size: 0.8rem;">Перевірка...</span>
-            </div>`);
+        // Функція перевірки доступності
+        function checkServerStatus(server, element, status_text) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // Таймаут 5 сек
 
-            item.on('hover:enter click', function() {
-                modal.find('.srv-item-row').css('background', 'rgba(255,255,255,0.07)');
-                $(this).css('background', 'rgba(255,255,255,0.25)');
-                selected_url = s.url;
-                selected_name = s.name;
-                modal.find('.sel-info').html('Вибрано: <b style="color:#f1c40f">' + s.name + '</b>');
-            });
-            modal.find('.srv-list-container').append(item);
-            checkStatus(s.url, item.find('.s-stat-label'), item);
-        });
+            // Використовуємо fetch з mode: 'no-cors', щоб уникнути CORS помилок (нам головне, що сервер відповів)
+            // Або 'cors' якщо сервер дозволяє. Для Lampa Android 'no-cors' надійніше для пінгу.
+            fetch(server.url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal })
+                .then(() => {
+                    clearTimeout(timeoutId);
+                    status_text.text('Доступний').css('color', '#4caf50'); // Зелений
+                    element.find('.server-status-dot').css('background-color', '#4caf50');
+                    element.removeClass('server-offline').addClass('selector'); // Робимо активним
+                })
+                .catch(() => {
+                    clearTimeout(timeoutId);
+                    status_text.text('Недоступний').css('color', '#f44336'); // Червоний
+                    element.find('.server-status-dot').css('background-color', '#f44336');
+                    element.addClass('server-offline').removeClass('selector'); // Робимо неактивним
+                    element.css('opacity', '0.5');
+                });
+        }
 
-        modal.find('.srv-btn-confirm').on('hover:enter click', function() {
-            if (selected_url) window.location.href = selected_url;
-        });
+        this.create = function () {
+            const html = $(`
+                <div class="server-switcher-plugin">
+                    <div class="server-switcher-scroll"></div>
+                    <div class="server-switcher-footer"></div>
+                </div>
+            `);
 
-        Lampa.Modal.open({
-            title: 'Сервери Lampa',
-            html: modal,
-            size: 'small',
-            onBack: function() {
-                Lampa.Modal.close();
-                Lampa.Controller.toggle(Lampa.Controller.enabled().name);
-            }
-        });
-    }
+            const scroll = html.find('.server-switcher-scroll');
+            const footer = html.find('.server-switcher-footer');
+            
+            // --- БЛОК 1: Поточний сервер ---
+            scroll.append('<div class="server-header" style="padding: 1em; color: #aaa; font-size: 1.1em;">Поточний сервер:</div>');
+            
+            let current_url = Lampa.Storage.get('source', 'lampa.mx');
+            // Якщо збережено просто домен без протоколу, додаємо http для порівняння, але відображаємо як є
+            if(current_url === 'lampa.mx') current_url = 'http://lampa.mx';
 
-    function init() {
-        // 1. Пряме впорскування в налаштування через подію Lampa
-        Lampa.Settings.listener.follow('open', function (e) {
-            if (e.name === 'general' || e.name === 'main' || $('.settings__layer').length) {
-                setTimeout(function() {
-                    if ($('.srv-settings-item').length) return;
-                    var item = $('<div class="settings__item selector srv-settings-item"><div class="settings__item-icon">' + icon_svg + '</div><div class="settings__item-name">Зміна сервера</div></div>');
-                    item.on('click hover:enter', openServerModal);
+            const current_server_obj = server_list.find(s => cleanUrl(s.url) === cleanUrl(current_url)) || { name: current_url, url: current_url };
+
+            const current_item = $(`
+                <div class="server-item current-server-item" style="padding: 1em; display: flex; align-items: center; background: rgba(255,255,255,0.05); margin-bottom: 20px;">
+                    <div style="flex-grow: 1;">
+                        <div style="font-size: 1.2em; font-weight: bold; color: #ffeb3b;">${current_server_obj.name}</div>
+                        <div class="status-line" style="font-size: 0.9em; margin-top: 5px;">Статус: <span class="current-status-text">Перевірка...</span></div>
+                    </div>
+                </div>
+            `);
+            
+            // Перевірка статусу поточного
+            checkServerStatus(current_server_obj, current_item, current_item.find('.current-status-text'));
+            scroll.append(current_item);
+
+
+            // --- БЛОК 2: Список серверів ---
+            scroll.append('<div class="server-header" style="padding: 1em; color: #aaa; font-size: 1.1em; border-top: 1px solid rgba(255,255,255,0.1);">Список серверів:</div>');
+
+            server_list.forEach(server => {
+                // Пропускаємо поточний сервер зі списку вибору або показуємо його (за бажанням). 
+                // Зазвичай зручніше бачити всі.
+                
+                const item = $(`
+                    <div class="server-item server-candidate" data-url="${server.url}" data-name="${server.name}" style="padding: 1em; display: flex; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <div class="server-status-dot" style="width: 10px; height: 10px; border-radius: 50%; background-color: #999; margin-right: 15px;"></div>
+                        <div style="flex-grow: 1;">
+                            <div style="font-size: 1.1em;">${server.name}</div>
+                            <div class="status-line" style="font-size: 0.8em; color: #aaa;">Статус: <span class="list-status-text">Перевірка...</span></div>
+                        </div>
+                    </div>
+                `);
+
+                // Спочатку блокуємо вибір, поки не пройде перевірка
+                item.removeClass('selector'); 
+
+                item.on('hover:enter', function () {
+                    if ($(this).hasClass('server-offline')) return;
+
+                    // Знімаємо виділення з інших
+                    scroll.find('.server-candidate').css('background', 'transparent');
+                    $(this).css('background', 'rgba(255,255,255,0.1)');
                     
-                    var container = $('.settings__layer').last();
-                    container.prepend(item);
-                }, 100);
-            }
-        });
+                    selected_new_server = {
+                        url: server.url,
+                        name: server.name
+                    };
+                    
+                    Lampa.Noty.show('Вибрано: ' + server.name + '. Натисніть кнопку внизу для зміни.');
+                    
+                    // Оновлюємо текст кнопки
+                    apply_btn.find('.btn-text').text(`Змінити на: ${server.name}`);
+                });
 
-        // 2. Шапка та меню (через інтервал)
-        setInterval(function() {
-            if (!$('.srv-head-btn').length && $('.head__actions').length) {
-                $('<div class="head__action selector srv-head-btn">' + icon_svg + '</div>')
-                    .on('click', openServerModal).prependTo('.head__actions');
-            }
-            if (!$('.srv-menu-item').length && $('.menu__list').length) {
-                $('<li class="menu__item selector srv-menu-item"><div class="menu__ico">' + icon_svg + '</div><div class="menu__text">Сервери</div></li>')
-                    .on('click', openServerModal).appendTo('.menu__list');
-            }
-        }, 2000);
+                checkServerStatus(server, item, item.find('.list-status-text'));
+                scroll.append(item);
+            });
+
+            // --- БЛОК 3: Кнопка дії ---
+            const apply_btn = $(`
+                <div class="selector" style="background-color: #673ab7; padding: 1em; text-align: center; margin: 1em; border-radius: 5px; cursor: pointer;">
+                    <span class="btn-text" style="font-weight: bold;">Виберіть сервер зі списку</span>
+                </div>
+            `);
+
+            apply_btn.on('hover:enter', function () {
+                if (!selected_new_server) {
+                    Lampa.Noty.show('Спочатку виберіть доступний сервер зі списку вище!');
+                    return;
+                }
+
+                Lampa.Select.show({
+                    title: 'Підтвердження',
+                    text: `Ви дійсно хочете змінити сервер на <b>${selected_new_server.name}</b>?<br>Додаток буде перезавантажено.`,
+                    items: [
+                        { title: 'Так, змінити', value: 1 },
+                        { title: 'Скасувати', value: 0 }
+                    ],
+                    onSelect: (v) => {
+                        if (v.value === 1) {
+                            // Логіка зміни сервера
+                            // Якщо це стандартний MX, Lampa іноді хоче бачити просто 'lampa.mx'
+                            let final_url = selected_new_server.url;
+                            if(final_url.includes('lampa.mx')) final_url = 'lampa.mx';
+
+                            Lampa.Storage.set('source', final_url);
+                            
+                            // Примусове перезавантаження
+                            location.reload();
+                        }
+                    }
+                });
+            });
+
+            footer.append(apply_btn);
+            
+            // Збірка
+            html.find('.server-switcher-scroll').css('max-height', '70vh').css('overflow-y', 'auto');
+            
+            this.activity.loader = false;
+            this.activity.toggle();
+        };
+
+        this.start = function () {
+            const _this = this;
+            Lampa.Controller.add('server_switcher', {
+                toggle: function () {
+                    Lampa.Controller.collectionSet(_this.render());
+                    Lampa.Controller.collectionFocus(_this.render().find('.selector').first(), _this.render());
+                },
+                left: function () {
+                    Lampa.Controller.toggle('settings');
+                },
+                up: function () {
+                    Lampa.Controller.collectionUp(_this.render());
+                },
+                down: function () {
+                    Lampa.Controller.collectionDown(_this.render());
+                },
+                back: function () {
+                    Lampa.Activity.backward();
+                }
+            });
+
+            Lampa.Activity.push({
+                url: '',
+                title: 'Зміна сервера',
+                component: 'server_switcher',
+                stats: false,
+                create: function () { return _this.create() }
+            });
+        };
     }
 
-    if (window.Lampa) init();
-    else window.addEventListener('lampa_init', init);
+    // Додаємо кнопку в налаштування
+    function addSettingsButton() {
+        if (window.appready) {
+            Lampa.Settings.listener.follow('open', function (e) {
+                if (e.name == 'main') {
+                    let item = $(`
+                        <div class="settings-param selector" data-type="button" data-name="server_switch">
+                            <div class="settings-param__name">Змінити сервер</div>
+                            <div class="settings-param__descr">Менеджер редиректів та перевірка доступності</div>
+                            <div class="settings-param__status"></div>
+                        </div>
+                    `);
+
+                    item.on('hover:enter', function () {
+                        new ServerSwitcher().start();
+                    });
+
+                    // Вставляємо, наприклад, після розділу "Інше" або в кінець
+                    $('.settings__content').append(item);
+                }
+            });
+        } else {
+            setTimeout(addSettingsButton, 500);
+        }
+    }
+
+    addSettingsButton();
 
 })();
