@@ -3,6 +3,8 @@
 
     if (!window.Lampa) return;
 
+    const PLUGIN_NAME = 'server_switcher';
+
     const SERVERS = [
         { name: 'Lapma (MX)', url: 'https://lampa.mx', default: true },
         { name: 'Lampa (Koyeb)', url: 'https://central-roze-d-yuriyovych-74a9dc5c.koyeb.app' },
@@ -12,92 +14,80 @@
     ];
 
     let selected = null;
-    let statuses = {};
+    let status = {};
 
-    function checkServer(server) {
-        return fetch(server.url, { method: 'HEAD', cache: 'no-store' })
+    /* ---------- перевірка доступності ---------- */
+    function check(url) {
+        return fetch(url, { method: 'HEAD', cache: 'no-store' })
             .then(() => true)
             .catch(() => false);
     }
 
-    async function updateStatuses() {
-        statuses = {};
-        await Promise.all(
-            SERVERS.map(async s => {
-                statuses[s.url] = await checkServer(s);
-            })
-        );
+    async function updateStatus() {
+        status = {};
+        for (let s of SERVERS) {
+            status[s.url] = await check(s.url);
+        }
     }
 
-    function getCurrentServerName() {
-        let current = Lampa.Storage.get('server') || '';
-        let found = SERVERS.find(s => current.indexOf(s.url) !== -1);
+    function currentName() {
+        let cur = Lampa.Storage.get('server') || '';
+        let found = SERVERS.find(s => cur.includes(s.url));
         return found ? found.name : 'Невідомо';
     }
 
-    function statusText(server) {
-        return statuses[server.url]
+    function dot(ok) {
+        return ok
             ? '<span style="color:#4CAF50">●</span>'
             : '<span style="color:#F44336">●</span>';
     }
 
+    /* ---------- головне меню ---------- */
     function openMenu() {
         selected = null;
 
-        updateStatuses().then(() => {
+        updateStatus().then(() => {
             let items = [];
 
-            // Поточний сервер
+            items.push({ title: 'Поточний сервер:', noselect: true });
             items.push({
-                title: 'Поточний сервер:',
-                noselect: true
-            });
-
-            items.push({
-                title: `<span style="color:yellow">${getCurrentServerName()}</span>`,
+                title: `<span style="color:yellow">${currentName()}</span>`,
                 noselect: true
             });
 
             items.push({ title: ' ', noselect: true });
+            items.push({ title: 'Список серверів:', noselect: true });
 
-            // Список серверів
-            items.push({
-                title: 'Список серверів:',
-                noselect: true
-            });
-
-            SERVERS.forEach(server => {
-                let online = statuses[server.url];
+            SERVERS.forEach(s => {
+                let ok = status[s.url];
 
                 items.push({
-                    title: `${statusText(server)} ${server.name}`,
-                    disabled: !online,
-                    select: function () {
-                        if (!online) {
+                    title: `${dot(ok)} ${s.name}`,
+                    disabled: !ok,
+                    select: () => {
+                        if (!ok) {
                             Lampa.Noty.show('Сервер недоступний');
                             return;
                         }
-
-                        selected = server;
-                        Lampa.Noty.show(`Обрано сервер: ${server.name}`);
+                        selected = s;
+                        Lampa.Noty.show(`Обрано: ${s.name}`);
                     }
                 });
             });
 
             items.push({ title: ' ', noselect: true });
 
-            // Кнопка застосування
             items.push({
                 title: '<span style="color:#03A9F4">Застосувати сервер</span>',
-                select: function () {
+                select: () => {
                     if (!selected) {
-                        Lampa.Noty.show('❗ Спочатку виберіть сервер');
+                        Lampa.Noty.show('❗ Оберіть сервер');
                         return;
                     }
 
                     Lampa.Storage.set('server', selected.url);
                     Lampa.Noty.show(
-                        `Сервер змінено на: ${selected.name}\nПерезапустіть додаток`
+                        `Сервер змінено на: ${selected.name}\nПерезапустіть Lampa`
                     );
                 }
             });
@@ -109,14 +99,29 @@
         });
     }
 
-    // Кнопка в меню налаштувань
-    Lampa.SettingsApi.addParam({
-        component: 'server_switcher',
-        param: {
-            type: 'button',
-            name: 'Зміна сервера',
-        },
-        onChange: openMenu
+    /* ---------- реєстрація плагіна ---------- */
+    Lampa.Plugin.register({
+        name: 'Зміна сервера',
+        version: '1.0.0',
+        author: 'ChatGPT',
+        description: 'Зміна сервера Lampa з перевіркою доступності',
+        icon: 'network_check',
+        oninit: function () {
+
+            /* кнопка в лівому меню */
+            Lampa.Menu.add({
+                title: 'Зміна сервера',
+                icon: 'network_check',
+                action: openMenu
+            });
+
+            /* кнопка в шапці */
+            Lampa.Header.add({
+                title: 'Сервер',
+                icon: 'dns',
+                action: openMenu
+            });
+        }
     });
 
 })();
