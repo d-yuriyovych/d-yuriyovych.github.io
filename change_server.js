@@ -1,79 +1,156 @@
 (function () {
     'use strict';
 
-    // 1. Створюємо функцію вікна (компонент)
-    function SS_Comp(object) {
-        var scroll = new Lampa.Scroll({mask: true, over: true});
-        var list = [
-            { name: 'Lampa (MX)', url: 'http://lampa.mx' },
-            { name: 'Lampa (Koyeb)', url: 'https://central-roze-d-yuriyovych-74a9dc5c.koyeb.app/' },
-            { name: 'Lampa (VIP)', url: 'http://lampa.vip' },
-            { name: 'Lampa (NNMTV)', url: 'http://lam.nnmtv.pw' },
-            { name: 'Prisma', url: 'http://prisma.ws/' }
-        ];
+    const servers = [
+        { name: 'Lampa (MX)', url: 'lampa.mx' },
+        { name: 'Lampa (Koyeb)', url: 'central-roze-d-yuriyovych-74a9dc5c.koyeb.app' },
+        { name: 'Lampa (VIP)', url: 'lampa.vip' },
+        { name: 'Lampa (NNMTV)', url: 'lam.nnmtv.pw' },
+        { name: 'Prisma', url: 'prisma.ws' }
+    ];
+
+    const icon = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 13V11C21 7.13401 17.866 4 14 4H10C6.13401 4 3 7.13401 3 11V13C3 16.866 6.13401 20 10 20H14C17.866 20 21 16.866 21 13Z" stroke="currentColor" stroke-width="2"/><path d="M8 12H16M16 12L13 9M16 12L13 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+    function checkStatus(url) {
+        // Визначаємо протокол. Koyeb потребує https.
+        let protocol = url.indexOf('koyeb.app') > -1 ? 'https://' : (window.location.protocol === 'https:' ? 'https://' : 'http://');
+        let fullUrl = url.startsWith('http') ? url : protocol + url;
         
-        this.create = function () {
-            var _this = this;
-            var html = $('<div><div class="settings-title">Вибір сервера</div></div>');
-
-            list.forEach(function (item) {
-                var itm = $('<div class="settings-param selector"><div class="settings-param__name">' + item.name + '</div><div class="settings-param__descr">' + item.url + '</div></div>');
-                itm.on('hover:enter', function () {
-                    window.location.href = item.url;
-                });
-                html.append(itm);
-            });
-            scroll.append(html);
-        };
-
-        this.render = function () { return scroll.render(); };
-        this.pause = function () {};
-        this.stop = function () {};
-        this.destroy = function () { scroll.destroy(); };
+        return fetch(fullUrl, { method: 'HEAD', mode: 'no-cors', timeout: 3000 })
+            .then(() => '<span style="color: #4cfb4c">● Online</span>')
+            .catch(() => '<span style="color: #ff4c4c">● Offline</span>');
     }
 
-    // 2. Функція ініціалізації
-    function start() {
-        Lampa.Component.add('ss_plugin', SS_Comp);
+    function getCleanHost(url) {
+        return url.replace(/^https?:\/\//, '').split('/')[0];
+    }
 
-        var openSS = function() {
-            Lampa.Activity.push({
-                title: 'Сервери',
-                component: 'ss_plugin',
-                page: 1
-            });
-        };
+    function createServerComponent() {
+        Lampa.Component.add('server_redirect', function (object) {
+            let network = new Lampa.Reguest();
+            let scroll = new Lampa.Scroll({ mask: true, over: true });
+            let items = [];
+            let activeServer = null;
+            let html = $('<div></div>');
+            let body = $('<div class="category-full"></div>');
 
-        // 3. Пряма вставка в DOM через інтервал (найтупіший, але найнадійніший метод)
-        setInterval(function() {
-            // ШАПКА
-            if ($('.header__actions').length && !$('.ss-h').length) {
-                var h = $('<div class="header__action selector ss-h" style="color:#f5c518 !important"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path></svg></div>');
-                h.on('click', openSS);
-                $('.header__actions').prepend(h);
+            this.create = function () {
+                this.build();
+            };
+
+            this.build = async function () {
+                // Поточний сервер
+                let currentHost = window.location.hostname;
+                let currentName = servers.find(s => getCleanHost(s.url) === currentHost)?.name || "Unknown";
+                let currentStatus = await checkStatus(currentHost);
+
+                // Заголовок Поточний
+                let headNow = $('<div class="search-item selector static" style="font-weight: bold; margin-bottom: 10px;">Поточний сервер:</div>');
+                let infoNow = $('<div class="search-item selector static" style="color: #ffd700; margin-bottom: 20px;">' + currentName + ' - ' + currentStatus + '</div>');
+                
+                body.append(headNow);
+                body.append(infoNow);
+
+                // Заголовок Список
+                body.append('<div class="search-item selector static" style="font-weight: bold; margin-top: 20px;">Список серверів:</div>');
+
+                // Рендер списку
+                for (let server of servers) {
+                    let status = await checkStatus(server.url);
+                    let isOnline = status.includes('Online');
+                    let item = $('<div class="search-item selector' + (isOnline ? '' : ' dead') + '" style="display: flex; justify-content: space-between; align-items: center;"><div>' + server.name + '</div><div style="font-size: 0.8em;">' + status + '</div></div>');
+                    
+                    if (isOnline) {
+                        item.on('hover:enter', () => {
+                            activeServer = server;
+                            Lampa.Noty.show('Вибрано: ' + server.name + '. Натисніть "Змінити сервер" нижче.');
+                        });
+                    } else {
+                        item.css('opacity', '0.5');
+                    }
+                    body.append(item);
+                }
+
+                // Кнопка дії
+                let btn = $('<div class="search-item selector" style="background: #34495e; color: #fff; text-align: center; margin-top: 30px; font-weight: bold;">Змінити сервер</div>');
+                btn.on('hover:enter', () => {
+                    if (activeServer) {
+                        let target = activeServer.url.startsWith('http') ? activeServer.url : 'http://' + activeServer.url;
+                        Lampa.Noty.show('Перенаправлення на ' + activeServer.name + '...');
+                        setTimeout(() => {
+                            window.location.href = target;
+                        }, 1000);
+                    } else {
+                        Lampa.Noty.show('Будь ласка, спочатку виберіть доступний сервер зі списку');
+                    }
+                });
+                body.append(btn);
+
+                scroll.append(body);
+                html.append(scroll.render());
+            };
+
+            this.render = function () {
+                return html;
+            };
+
+            this.back = function () {
+                Lampa.Activity.backward();
+            };
+        });
+    }
+
+    function addInterfaceElements() {
+        // 1. Додавання в Налаштування
+        Lampa.SettingsApi.addComponent({
+            component: 'server_redirect',
+            name: 'Переїзд (Сервери)',
+            icon: icon
+        });
+
+        // 2. Додавання в ліве меню
+        Lampa.Listener.follow('app', function (e) {
+            if (e.type === 'ready') {
+                let menu_item = $('<li class="menu__item selector" data-action="server_redirect">' +
+                    '<div class="menu__ico">' + icon + '</div>' +
+                    '<div class="menu__text">Змінити сервер</div>' +
+                    '</li>');
+
+                menu_item.on('hover:enter', function () {
+                    Lampa.Activity.push({
+                        url: '',
+                        title: 'Вибір сервера',
+                        component: 'server_redirect',
+                        page: 1
+                    });
+                });
+                $('.menu .menu__list').append(menu_item);
+
+                // 3. Додавання в шапку (Header)
+                let head_icon = $('<div class="header__item selector" data-action="server_redirect">' + icon + '</div>');
+                head_icon.on('hover:enter', function () {
+                    Lampa.Activity.push({
+                        url: '',
+                        title: 'Вибір сервера',
+                        component: 'server_redirect',
+                        page: 1
+                    });
+                });
+                $('.header__secondary').prepend(head_icon);
             }
-
-            // МЕНЮ ЗЛІВА
-            if ($('.menu__list').length && !$('.ss-m').length) {
-                var m = $('<li class="menu__item selector ss-m"><div class="menu__ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f5c518" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect></svg></div><div class="menu__text">Сервер</div></li>');
-                m.on('click', openSS);
-                $('.menu__list').find('.menu__item[data-action="settings"]').before(m);
-            }
-
-            // НАЛАШТУВАННЯ (головний екран)
-            if ($('.settings__content').length && !$('.ss-s').length) {
-                var s = $('<div class="settings-param selector ss-s"><div class="settings-param__name" style="color:#f5c518">Зміна сервера</div><div class="settings-param__descr">Перейти на інше дзеркало</div></div>');
-                s.on('click', openSS);
-                $('.settings__content').prepend(s);
-            }
-        }, 1000);
+        });
     }
 
     // Запуск
-    if (window.Lampa) start();
-    else {
-        document.addEventListener('DOMContentLoaded', function() {
-            if (window.Lampa) start();
+    if (window.appready) {
+        createServerComponent();
+        addInterfaceElements();
+    } else {
+        Lampa.Listener.follow('app', function (e) {
+            if (e.type == 'ready') {
+                createServerComponent();
+                addInterfaceElements();
+            }
         });
     }
 })();
