@@ -11,173 +11,152 @@
             { name: 'Prisma',           url: 'http://prisma.ws/',       host: 'prisma.ws' }
         ];
 
-        var current_host = window.location.hostname;
         var selected_target = null;
-
-        var css = `
-            .ss-wrapper { padding: 10px; }
-            .ss-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-radius: 6px; margin-bottom: 6px; }
-            .ss-item.selector:hover, .ss-item.selector.focus { background-color: #fff !important; color: #000; cursor: pointer; }
-            .ss-title { margin: 20px 0 10px 0; opacity: 0.5; font-size: 0.9em; text-transform: uppercase; }
-            .ss-current-name { color: #f5c518; font-weight: bold; text-transform: uppercase; font-size: 1.1em; }
-            .ss-led { width: 10px; height: 10px; border-radius: 50%; background: #444; }
-            .ss-led.online { background: #4caf50; box-shadow: 0 0 8px #4caf50; }
-            .ss-led.offline { background: #f44336; }
-            .ss-led.checking { background: #ffeb3b; }
-            .ss-item.active { border: 2px solid #f5c518; }
-            .ss-item.disabled { opacity: 0.3; filter: grayscale(1); pointer-events: none; }
-            .ss-btn { margin-top: 20px; padding: 15px; text-align: center; border-radius: 8px; font-weight: bold; background: #333; text-transform: uppercase; }
-            .ss-btn.ready { background: #f5c518 !important; color: #000 !important; cursor: pointer; }
-        `;
+        var current_host = window.location.hostname;
 
         this.init = function () {
-            Lampa.Utils.putStyle('server-switcher', css);
+            Lampa.Utils.putStyle('server-switcher', `
+                .ss-page { padding: 20px; }
+                .ss-title { font-size: 1.2em; opacity: 0.6; margin: 20px 0 10px 0; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }
+                .ss-title.no-select { pointer-events: none; }
+                .ss-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-radius: 8px; margin-bottom: 8px; background: rgba(255,255,255,0.05); cursor: pointer; }
+                .ss-item.focus { background: #fff !important; color: #000; }
+                .ss-item.active { border: 2px solid #f5c518; background: rgba(245, 197, 24, 0.1); }
+                .ss-item.disabled { opacity: 0.3; filter: grayscale(1); pointer-events: none; }
+                .ss-current-name { color: #f5c518; font-weight: bold; font-size: 1.2em; }
+                .ss-status { display: flex; align-items: center; font-size: 0.9em; }
+                .ss-led { width: 12px; height: 12px; border-radius: 50%; margin-left: 10px; background: #555; }
+                .ss-led.online { background: #4caf50; box-shadow: 0 0 8px #4caf50; }
+                .ss-led.offline { background: #f44336; }
+                .ss-led.checking { background: #ffeb3b; }
+                .ss-btn-change { margin-top: 30px; padding: 18px; text-align: center; border-radius: 10px; font-weight: bold; background: #333; text-transform: uppercase; font-size: 1.1em; }
+                .ss-btn-change.ready { background: #f5c518 !important; color: #000 !important; }
+            `);
 
-            // 1. Додавання в головне меню НАЛАШТУВАНЬ (не в "Інше")
-            Lampa.Settings.listener.follow('open', function (e) {
-                if (e.name == 'server_switch_main') {
-                    _this.render(e.body);
-                }
-            });
+            // Реєструємо компонент, щоб не було Script Error
+            Lampa.Component.add('server_switch_main', this.createPage);
 
-            // Створюємо пункт в основному списку налаштувань
-            this.injectSettingsLink();
-            
-            // 2. Інжектор для ШАПКИ та МЕНЮ ЗЛІВА
             this.runInjector();
         };
 
-        this.openMenu = function() {
-            Lampa.Settings.open('server_switch_main');
-        };
-
-        // Вставка кнопки в основний список налаштувань
-        this.injectSettingsLink = function() {
-            setInterval(function() {
-                if ($('.settings__content').length && !$('.settings-ss-link').length) {
-                    var link = $(`
-                        <div class="settings-param selector settings-ss-link">
-                            <div class="settings-param__name">Зміна сервера</div>
-                            <div class="settings-param__descr">Вибір дзеркала Lampa</div>
-                        </div>
-                    `);
-                    link.on('click hover:enter', _this.openMenu);
-                    $('.settings__content').prepend(link);
-                }
-            }, 1000);
+        this.open = function() {
+            Lampa.Activity.push({
+                url: '',
+                title: 'Зміна сервера',
+                component: 'server_switch_main',
+                page: 1
+            });
         };
 
         this.runInjector = function() {
             setInterval(function() {
                 // ШАПКА
                 if ($('.header__actions').length && !$('.header-ss-btn').length) {
-                    var headBtn = $(`<div class="header__action selector header-ss-btn">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f5c518" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path><line x1="2" y1="20" x2="2.01" y2="20"></line></svg>
-                    </div>`);
-                    headBtn.on('click hover:enter', function(e) {
-                        e.stopPropagation();
-                        _this.openMenu();
-                    });
+                    var headBtn = $('<div class="header__action selector header-ss-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f5c518" stroke-width="2"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path><circle cx="2" cy="20" r="1"></circle></svg></div>');
+                    headBtn.on('click hover:enter', _this.open);
                     $('.header__actions').prepend(headBtn);
                 }
 
                 // МЕНЮ ЗЛІВА
                 if ($('.menu__list').length && !$('.menu-ss-btn').length) {
-                    var menuBtn = $(`<li class="menu__item selector menu-ss-btn">
-                        <div class="menu__ico">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f5c518" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect></svg>
-                        </div>
-                        <div class="menu__text">Сервер</div>
-                    </li>`);
-                    menuBtn.on('click hover:enter', function(e) {
-                        e.stopPropagation();
-                        _this.openMenu();
-                    });
+                    var menuBtn = $('<li class="menu__item selector menu-ss-btn"><div class="menu__ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f5c518" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect></svg></div><div class="menu__text">Сервер</div></li>');
+                    menuBtn.on('click hover:enter', _this.open);
                     var settings = $('.menu__item[data-action="settings"]');
                     if(settings.length) settings.before(menuBtn);
                     else $('.menu__list').append(menuBtn);
                 }
+
+                // В ГОЛОВНИХ НАЛАШТУВАННЯХ
+                if ($('.settings__content').length && !$('.settings-ss-link').length) {
+                    var link = $('<div class="settings-param selector settings-ss-link"><div class="settings-param__name">Зміна сервера</div><div class="settings-param__descr">Вибір дзеркала для редиректу</div></div>');
+                    link.on('click hover:enter', _this.open);
+                    $('.settings__content').prepend(link);
+                }
             }, 1000);
         };
 
-        this.render = function (container) {
-            selected_target = null;
-            var content = $('<div class="ss-wrapper"></div>');
+        this.createPage = function(object) {
+            var scroll = new Lampa.Scroll({mask: true, over: true});
+            var content = $('<div class="ss-page"></div>');
             
-            content.append('<div class="ss-title">Поточний сервер:</div>');
-            var cur = servers_list.find(s => current_host.includes(s.host)) || {name: 'Невідомий', url: window.location.href};
-            var curItem = $(`
-                <div class="ss-item" style="border: 1px solid #ffffff1a;">
-                    <div>
-                        <div class="ss-current-name">${cur.name}</div>
-                        <div style="font-size: 0.8em; opacity: 0.6;">${window.location.protocol}//${window.location.hostname}</div>
-                    </div>
-                    <div class="ss-led checking" id="led-current"></div>
-                </div>
-            `);
-            content.append(curItem);
-            _this.check(cur.url, curItem.find('#led-current'));
+            this.create = function() {
+                var _page = this;
+                selected_target = null;
 
-            content.append('<div class="ss-title">Список серверів:</div>');
-            servers_list.forEach(function(s){
-                var item = $(`
-                    <div class="ss-item selector">
-                        <div style="font-size:1.1em">${s.name}</div>
-                        <div class="ss-led checking"></div>
-                    </div>
-                `);
-                item.on('click hover:enter', function(){
-                    if($(this).hasClass('disabled')) return;
-                    content.find('.ss-item').removeClass('active');
-                    $(this).addClass('active');
-                    selected_target = s;
-                    updateBtn();
+                // Поточний сервер
+                content.append('<div class="ss-title no-select">Поточний сервер:</div>');
+                var cur = servers_list.find(s => current_host.includes(s.host)) || {name: 'Стандартний', url: window.location.origin};
+                var curItem = $('<div class="ss-item ss-current-block no-select"><div class="ss-current-name">' + cur.name + '</div><div class="ss-status">перевірка...<div class="ss-led checking"></div></div></div>');
+                content.append(curItem);
+                _this.ping(cur.url, curItem);
+
+                // Список
+                content.append('<div class="ss-title no-select">Список серверів:</div>');
+                servers_list.forEach(function(s) {
+                    var item = $('<div class="ss-item selector"><div class="ss-name">' + s.name + '</div><div class="ss-status">-<div class="ss-led checking"></div></div></div>');
+                    item.on('hover:enter', function() {
+                        if(item.hasClass('disabled')) return;
+                        content.find('.ss-item').removeClass('active');
+                        item.addClass('active');
+                        selected_target = s;
+                        _page.updateBtn();
+                    });
+                    content.append(item);
+                    _this.ping(s.url, item, true);
                 });
-                content.append(item);
-                _this.check(s.url, item.find('.ss-led'), function(ok){
-                    if(!ok) {
-                        item.addClass('disabled');
-                        item.find('div:first-child').css('text-decoration','line-through');
+
+                // Кнопка
+                this.btn = $('<div class="ss-btn-change selector">Оберіть сервер</div>');
+                this.btn.on('hover:enter', function() {
+                    if(!selected_target) {
+                        Lampa.Noty.show('Будь ласка, оберіть сервер зі списку');
+                        return;
                     }
+                    Lampa.Select.show({
+                        title: 'Редирект',
+                        items: [{title: 'Змінити сервер на ' + selected_target.name, ready: true}, {title: 'Відміна'}],
+                        onSelect: function(a) {
+                            if(a.ready) window.location.href = selected_target.url;
+                            else Lampa.Controller.toggle('content');
+                        },
+                        onBack: function() { Lampa.Controller.toggle('content'); }
+                    });
                 });
-            });
+                content.append(this.btn);
 
-            var btn = $('<div class="ss-btn selector">Виберіть сервер</div>');
-            function updateBtn() {
+                scroll.append(content);
+                return scroll.render();
+            };
+
+            this.updateBtn = function() {
                 if(selected_target) {
-                    btn.addClass('ready').text('Змінити сервер на: ' + selected_target.name);
-                } else {
-                    btn.removeClass('ready').text('Виберіть сервер зі списку');
+                    this.btn.addClass('ready').text('Змінити сервер');
                 }
-            }
+            };
 
-            btn.on('click hover:enter', function(){
-                if(!selected_target) return;
-                Lampa.Select.show({
-                    title: 'Зміна сервера',
-                    items: [
-                        {title: 'Перейти на ' + selected_target.name, confirm: true},
-                        {title: 'Скасувати'}
-                    ],
-                    onSelect: function(a){
-                        if(a.confirm) window.location.href = selected_target.url;
-                        else Lampa.Controller.toggle('content');
-                    },
-                    onBack: function(){ Lampa.Controller.toggle('content'); }
-                });
-            });
-
-            content.append(btn);
-            container.empty().append(content);
+            this.render = function() { return this.create(); };
+            this.pause = function() {};
+            this.stop = function() {};
+            this.destroy = function() { scroll.destroy(); content.remove(); };
         };
 
-        this.check = function(url, el, cb) {
-            fetch(url, { method: 'HEAD', mode: 'no-cors' })
-                .then(()=>{ el.removeClass('checking').addClass('online'); if(cb) cb(true); })
-                .catch(()=>{ el.removeClass('checking').addClass('offline'); if(cb) cb(false); });
+        this.ping = function(url, el, canDisable) {
+            var led = el.find('.ss-led');
+            var statusText = el.find('.ss-status');
+            fetch(url, {method: 'HEAD', mode: 'no-cors', cache: 'no-cache'})
+                .then(function() {
+                    led.removeClass('checking').addClass('online');
+                    statusText.html('онлайн <div class="ss-led online"></div>');
+                })
+                .catch(function() {
+                    led.removeClass('checking').addClass('offline');
+                    statusText.html('офлайн <div class="ss-led offline"></div>');
+                    if(canDisable) el.addClass('disabled');
+                });
         };
     }
 
-    if(window.appready) new ServerSwitcher().init();
-    else Lampa.Listener.follow('app', function(e){ if(e.type=='ready') new ServerSwitcher().init(); });
+    var switcher = new ServerSwitcher();
+    if(window.appready) switcher.init();
+    else Lampa.Listener.follow('app', function(e){ if(e.type=='ready') switcher.init(); });
 })();
